@@ -1,0 +1,41 @@
+/* Blinking animation for Earthquake Hazard Circles */
+@keyframes pulse-red {
+  0% {
+    r: 10px;
+    fill-opacity: 0.9;
+    stroke-width: 2px;
+  }
+  50% {
+    r: 22px;
+    fill-opacity: 0.3;
+    stroke-width: 6px;
+  }
+  100% {
+    r: 10px;
+    fill-opacity: 0.9;
+    stroke-width: 2px;
+  }
+}
+
+@keyframes pulse-orange {
+  0% {
+    r: 8px;
+    fill-opacity: 0.8;
+  }
+  50% {
+    r: 16px;
+    fill-opacity: 0.3;
+  }
+  100% {
+    r: 8px;
+    fill-opacity: 0.8;
+  }
+}
+
+.blinking-hazard-red {
+  animation: pulse-red 1.2s infinite ease-in-out;
+}
+
+.blinking-hazard-orange {
+  animation: pulse-orange 1.6s infinite ease-in-out;
+}

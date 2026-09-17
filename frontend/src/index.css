@@ -1,0 +1,143 @@
+/* Base Map Container Styles */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #020617;
+  color: #f8fafc;
+}
+
+/* ==========================================================================
+   1. EARTHQUAKE BLINKING BEACON (SLOW RED)
+   ========================================================================== */
+.custom-red-marker {
+  background: transparent !important;
+  border: none !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  overflow: visible !important;
+}
+
+.slow-red-beacon {
+  position: relative !important;
+  width: 22px !important;
+  height: 22px !important;
+  background-color: #ef4444 !important;
+  border-radius: 50% !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 0 16px #ef4444 !important;
+  will-change: opacity;
+  animation: seismicBlink 2.5s ease-in-out infinite !important;
+}
+
+.slow-red-beacon::after {
+  content: '' !important;
+  position: absolute !important;
+  top: -2px !important;
+  left: -2px !important;
+  right: -2px !important;
+  bottom: -2px !important;
+  border-radius: 50% !important;
+  border: 2px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.4) !important;
+  will-change: transform, opacity;
+  animation: seismicWave 2.5s cubic-bezier(0, 0.2, 0.8, 1) infinite !important;
+}
+
+@keyframes seismicBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes seismicWave {
+  0% { transform: scale(1); opacity: 0.85; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* ==========================================================================
+   2. SENTINEL LAND SURFACE TEMPERATURE SQUARE BADGE (EXACT PHOTO MATCH)
+   ========================================================================== */
+.sentinel-badge-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.sentinel-square-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.sentinel-square-box {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #ffffff;
+  background-color: rgba(153, 27, 27, 0.9);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.sentinel-label {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.9);
+  letter-spacing: 0.3px;
+}
+
+/* ==========================================================================
+   3. IN-APP WARNING TOAST ANIMATION
+   ========================================================================== */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Exact Sentinel Thermal Blend Effect */
+.thermal-raster-canvas {
+  filter: contrast(1.4) saturate(2.5) brightness(0.95);
+  mix-blend-mode: hard-light;
+}
+
+/* Custom Heat Dot for City Markers */
+.heat-dot-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.heat-dot-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.heat-dot-pin {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 0 8px #ffffff, 0 0 14px #ff4500;
+  border: 1px solid #ffffff;
+}
+
+.heat-dot-label {
+  color: #ffffff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.9);
+}
