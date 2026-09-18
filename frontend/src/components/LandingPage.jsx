@@ -42,7 +42,7 @@ const TEAM_MEMBERS = [
     photo: '/images/shreya.jpg' 
   },
   { 
-    name: 'Samarth Singh', 
+    name: 'Samarth Kumar', 
     role: 'AI/ML & CNN+LSTM+GA Forecaster', 
     desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 24-hour time-series weather forecasting, and Genetic Algorithms for dynamic emergency evacuation routing.', 
     photo: '/images/samarth.jpg' 
