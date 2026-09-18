@@ -17,6 +17,7 @@ import FloodDetailModal from './FloodDetailModal';
 import EarthquakeDetailModal from './EarthquakeDetailModal';
 import CycloneDetailModal from './CycloneDetailModal';
 import AlertModal from './AlertModal';
+import { useOverlayHistory } from '../utils/historyBack';
 
 const { BaseLayer } = LayersControl;
 
@@ -70,6 +71,9 @@ const MapDashboard = ({ user, onLogout }) => {
   const [backendOnline, setBackendOnline] = useState(null);
   const selectedLocationRef = useRef(null);
   const pendingVoiceSeqRef = useRef(null);
+
+  // Mobile Back button closes the open profile menu instead of exiting.
+  useOverlayHistory(showProfileMenu, () => setShowProfileMenu(false));
 
   const profile = user || {};
   const fullName = profile.fullName || 'Public Citizen';
@@ -202,14 +206,18 @@ const MapDashboard = ({ user, onLogout }) => {
         </div>
 
         {/* Profile Menu */}
-        <div data-profile-menu style={{ position: 'relative' }}>
+        <div data-profile-menu style={{ position: 'relative', maxWidth: '100%', minWidth: 0 }}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setShowProfileMenu(v => !v); }}
+            aria-expanded={showProfileMenu}
+            aria-haspopup="true"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
+              maxWidth: '100%',
+              minWidth: 0,
               background: 'rgba(2, 132, 199, 0.12)',
               border: '1px solid rgba(56, 189, 248, 0.35)',
               borderRadius: '999px',
@@ -221,6 +229,7 @@ const MapDashboard = ({ user, onLogout }) => {
             <span style={{
               height: '34px',
               width: '34px',
+              flexShrink: 0,
               borderRadius: '50%',
               background: 'linear-gradient(135deg, #20c6c6, #4f8cff)',
               color: '#fff',
@@ -232,25 +241,51 @@ const MapDashboard = ({ user, onLogout }) => {
             }}>
               {avatarText}
             </span>
-            <span style={{ textAlign: 'left', lineHeight: 1.2 }}>
-              <span style={{ display: 'block', fontSize: '13px', fontWeight: 'bold' }}>{fullName}</span>
-              <span style={{ display: 'block', fontSize: '11px', color: '#38bdf8' }}>{role}</span>
+            <span className="db-profile-identity" style={{
+              textAlign: 'left',
+              lineHeight: 1.2,
+              minWidth: 0,
+              overflow: 'hidden',
+              flexShrink: 1
+            }}>
+              <span className="db-profile-name" style={{
+                display: 'block',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                maxWidth: '150px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>{fullName}</span>
+              <span className="db-profile-role" style={{
+                display: 'block',
+                fontSize: '11px',
+                color: '#38bdf8',
+                maxWidth: '150px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>{role}</span>
             </span>
-            <span style={{ fontSize: '10px', color: '#94a3b8' }}>{showProfileMenu ? '▲' : '▼'}</span>
+            <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>{showProfileMenu ? '▲' : '▼'}</span>
           </button>
 
           {showProfileMenu && (
-            <div style={{
+            <div className="db-profile-dropdown" style={{
               position: 'absolute',
               right: 0,
               top: 'calc(100% + 8px)',
               width: '260px',
+              maxWidth: 'min(260px, calc(100vw - 24px))',
+              maxHeight: 'calc(100vh - 100px)',
+              overflowY: 'auto',
+              overflowX: 'hidden',
               background: '#0f172a',
               border: '1px solid #334155',
               borderRadius: '14px',
               boxShadow: '0 20px 45px rgba(0,0,0,0.65)',
-              overflow: 'hidden',
-              zIndex: 2000
+              zIndex: 3000,
+              wordBreak: 'break-word'
             }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e293b' }}>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>{fullName}</div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { API_BASE_URL, withRetry } from '../config';
+import { useOverlayHistory } from '../utils/historyBack';
 
 const DEFAULT_LOCATION = { lat: 26.8467, lng: 80.9462, name: 'Lucknow', region: 'Uttar Pradesh', country: 'India' };
 
@@ -41,6 +42,7 @@ const GAUGE_R = 64;
 const GAUGE_CIRC = 2 * Math.PI * GAUGE_R;
 
 const FloodDetailModal = ({ isOpen, onClose }) => {
+  useOverlayHistory(isOpen, onClose);
   const [loading, setLoading] = useState(true);
   const [locationInfo, setLocationInfo] = useState({
     name: 'Detecting location…',

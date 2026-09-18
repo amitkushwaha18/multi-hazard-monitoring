@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GOOGLE_CLIENT_ID, API_BASE_URL } from '../config';
+import { useOverlayHistory } from '../utils/historyBack';
 
 // Dynamic India States and Cities mapping dictionary
 const INDIA_STATES_AND_CITIES = {
@@ -62,6 +63,39 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState('');
 
+  // Mandatory password verification for existing Google-login users
+  const [showGooglePassword, setShowGooglePassword] = useState(false);
+  const [googlePassword, setGooglePassword] = useState('');
+  const [googlePasswordLoading, setGooglePasswordLoading] = useState(false);
+  const [googlePasswordError, setGooglePasswordError] = useState('');
+  const [pendingGoogle, setPendingGoogle] = useState(null);
+
+  // Registration Email OTP Verification Modal State.
+  // The account is NOT created in MongoDB until the Email OTP is verified.
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+
+  // Mobile Back button closes any open registration dialog (email OTP /
+  // Google password verification) instead of leaving the website.
+  const regSubModalOpen = showOtpModal || showGooglePassword;
+  useOverlayHistory(regSubModalOpen, () => {
+    setShowOtpModal(false);
+    setShowGooglePassword(false);
+  });
+
+  // Resend-OTP countdown timer (30s cooldown).
+  useEffect(() => {
+    if (otpResendCooldown <= 0) return undefined;
+    const t = setInterval(() => setOtpResendCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [otpResendCooldown]);
+
+  const startResendCooldown = () => setOtpResendCooldown(30);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
@@ -92,25 +126,123 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          email: formData.email,
+          name: formData.fullName,
+          phone: formData.phone,
+          dob: formData.dob,
+          address: formData.address,
+          state: formData.state,
+          city: formData.city,
+          pinCode: formData.pinCode,
+          role: formData.role
+        })
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        alert(formData.role === 'Authority/Admin' ? 'Admin Registration request successful!' : 'Registration successful!');
-        onRegisterSuccess(data.role, data.fullName);
-      } else {
-        alert(data.message || 'Registration failed');
+      // NEW USER: backend has NOT saved the account yet. A real 6-digit OTP was
+      // emailed. Open the verification modal — the account is created only after
+      // the user submits the correct OTP via /api/auth/verify-otp-register.
+      if (data.success && data.otpRequired) {
+        setRegisteredEmail(formData.email.trim());
+        setOtpInput('');
+        setOtpError('');
+        setShowOtpModal(true);
+        startResendCooldown();
+        return;
+      }
+
+      alert(data.message || 'Registration failed');
+      // Already-existing account detected -> route the user to the Login tab.
+      if (/Account already exists/i.test(data.message || '')) {
+        setTimeout(() => {
+          if (onSwitchToLogin) onSwitchToLogin();
+        }, 700);
       }
     } catch (error) {
       console.error('Error during registration:', error);
       alert('Network error. Please make sure the backend server is running.');
+    }
+  };
+
+  // Verify the 6-digit Email OTP -> only now is the account created in MongoDB.
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otpInput.trim()) return alert('Please enter the 6-digit OTP sent to your email.');
+    if (!/^\d{6}$/.test(otpInput.trim())) return alert('OTP must be exactly 6 digits.');
+
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.fullName,
+          email: registeredEmail,
+          password: formData.password,
+          otp: otpInput.trim(),
+          phone: formData.phone,
+          dob: formData.dob,
+          address: formData.address,
+          state: formData.state,
+          city: formData.city,
+          pinCode: formData.pinCode,
+          role: formData.role
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setShowOtpModal(false);
+        alert('Email verified! Your account has been created successfully.');
+        onRegisterSuccess(data.role, data.fullName);
+      } else {
+        setOtpError(data.message || 'Invalid OTP. Please try again.');
+        if (/Account already exists/i.test(data.message || '')) {
+          setTimeout(() => {
+            setShowOtpModal(false);
+            if (onSwitchToLogin) onSwitchToLogin();
+          }, 900);
+        }
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      setOtpError('Network error. Please check your connection and try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpResendCooldown > 0 || otpLoading) return;
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/resend-register-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registeredEmail })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setOtpInput('');
+        startResendCooldown();
+      } else {
+        setOtpError(data.message || 'Failed to resend OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      setOtpError('Network error. Please check your connection and try again.');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -141,16 +273,31 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
     };
   };
 
-  const syncGoogleProfile = async (accessToken, profile) => {
-    const body = { fallbackName: profile.fullName };
-    if (accessToken) body.accessToken = accessToken;
+  const googleAuthRequest = async (body) => {
     const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
-    if (!res.ok || !data.success) {
+    return { ok: res.ok, status: res.status, data };
+  };
+
+  const syncGoogleProfile = async (accessToken, profile) => {
+    const body = { fallbackName: profile.fullName, fallbackEmail: profile.email };
+    if (accessToken) body.accessToken = accessToken;
+    const { ok, status, data } = await googleAuthRequest(body);
+    if (!ok || !data.success) {
+      if (
+        status === 403 ||
+        /No account found/i.test(data.message || '') ||
+        /Account not found/i.test(data.message || '') ||
+        /Account not registered/i.test(data.message || '')
+      ) {
+        const err = new Error(data.message || 'Account not registered. Please register first using Email OTP.');
+        err.accountNotFound = true;
+        throw err;
+      }
       throw new Error(data.message || 'Google sign-in failed on the server.');
     }
     if (data.token) {
@@ -159,32 +306,60 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
     return data;
   };
 
+  // Complete the Google login with the account's registered password.
+  const handleGooglePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!pendingGoogle) return;
+    if (!googlePassword.trim()) return alert('Please enter your account password to complete Google login.');
+
+    setGooglePasswordLoading(true);
+    setGooglePasswordError('');
+    try {
+      const { accessToken, profile } = pendingGoogle;
+      const { ok, data } = await googleAuthRequest({
+        accessToken,
+        email: profile.email,
+        password: googlePassword
+      });
+      if (!ok || !data.success) {
+        throw new Error(data.message || 'Password verification failed. Please try again.');
+      }
+      if (data.token) {
+        localStorage.setItem('shm_auth_token', data.token);
+      }
+      alert(`Signed in successfully via Google! Welcome back, ${data.fullName || profile.fullName}`);
+      onGoogleSuccess({
+        role: data.role || 'Public Citizen',
+        fullName: data.fullName || profile.fullName,
+        email: data.email || profile.email,
+        phone: data.phone || '',
+        city: data.city || 'Gorakhpur',
+        state: data.state || 'Uttar Pradesh',
+        address: data.address || '',
+        pinCode: data.pinCode || '',
+        authProvider: 'google',
+        token: data.token || null
+      });
+      setShowGooglePassword(false);
+      setPendingGoogle(null);
+      setGooglePassword('');
+    } catch (err) {
+      console.warn('Google password verification failed:', err?.message);
+      setGooglePasswordError(err?.message || 'Password verification failed. Please try again.');
+      setGooglePassword('');
+    } finally {
+      setGooglePasswordLoading(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setGoogleError('');
     setGoogleLoading(true);
 
     const clientId = (GOOGLE_CLIENT_ID || '').trim();
     if (!clientId) {
-      try {
-        const data = await syncGoogleProfile(null, { fullName: formData.fullName || 'Google User' });
-        onGoogleSuccess({
-          role: data.role || 'Public Citizen',
-          fullName: data.fullName || formData.fullName || 'Google User',
-          email: data.email || '',
-          phone: data.phone || '',
-          city: data.city || 'Gorakhpur',
-          state: data.state || 'Uttar Pradesh',
-          address: data.address || '',
-          pinCode: data.pinCode || '',
-          authProvider: 'google',
-          token: data.token || null
-        });
-      } catch (err) {
-        console.warn('Google guest sign-in failed:', err);
-        setGoogleError(err?.message || 'Google sign-in failed. Please try again.');
-      } finally {
-        setGoogleLoading(false);
-      }
+      setGoogleLoading(false);
+      setGoogleError('🔒 Google Sign-In is not configured. Please register using the form instead.');
       return;
     }
 
@@ -216,6 +391,15 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
       const verifiedProfile = await verifyGoogleAccount(tokenResponse.access_token);
       const data = await syncGoogleProfile(tokenResponse.access_token, verifiedProfile);
 
+      // Account exists but requires the registered password before finalizing login.
+      if (data.needsPassword) {
+        setPendingGoogle({ accessToken: tokenResponse.access_token, profile: verifiedProfile });
+        setGooglePassword('');
+        setGooglePasswordError('');
+        setShowGooglePassword(true);
+        return;
+      }
+
       onGoogleSuccess({
         role: data.role || 'Public Citizen',
         fullName: data.fullName || verifiedProfile.fullName,
@@ -230,6 +414,10 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
       });
     } catch (err) {
       console.warn('Google sign-in failed or was cancelled:', err);
+      if (err?.accountNotFound || /No account found/i.test(err?.message || '') || /Account not found/i.test(err?.message || '') || /Account not registered/i.test(err?.message || '')) {
+        alert(err?.message || 'Account not registered. Please register first using Email OTP.');
+        return;
+      }
       setGoogleError(err?.message || 'Google sign-in failed. Please try again.');
     } finally {
       setGoogleLoading(false);
@@ -552,6 +740,216 @@ function Register({ onSwitchToLogin, onRegisterSuccess, onGoogleSuccess }) {
           </>
         )}
       </div>
+
+      {/* Google Login Mandatory Password Modal */}
+      {showGooglePassword && (
+        <div className="auth-modal-overlay" style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="auth-modal-card" style={{
+            background: '#0b1d31',
+            border: '1px solid #8ce7e7',
+            borderRadius: '16px',
+            padding: '24px',
+            width: 'min(90%, 420px)',
+            maxWidth: '420px',
+            boxSizing: 'border-box'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#8ce7e7', fontSize: '18px' }}>🔐 Verify Your Account</h3>
+            <p style={{ color: '#a9bad0', fontSize: '13px', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Your Google account <strong style={{ color: '#e2e8f0' }}>{pendingGoogle?.profile?.email || ''}</strong> is already registered.
+              Please enter your account password to complete the secure Google login.
+            </p>
+
+            <form onSubmit={handleGooglePasswordSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#a9bad0', marginBottom: '6px' }}>Registered Account Password</label>
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={googlePassword}
+                  onChange={(e) => setGooglePassword(e.target.value)}
+                  autoFocus
+                  required
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,.08)',
+                    border: '1px solid rgba(255,255,255,.16)',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    color: '#fff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {googlePasswordError && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: '#fecaca',
+                  background: 'rgba(239,68,68,.12)',
+                  border: '1px solid rgba(239,68,68,.35)'
+                }}>
+                  {googlePasswordError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowGooglePassword(false); setPendingGoogle(null); setGooglePassword(''); }}
+                  style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={googlePasswordLoading}
+                  style={{
+                    background: 'linear-gradient(90deg, #20c6c6, #4f8cff)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    cursor: googlePasswordLoading ? 'progress' : 'pointer',
+                    fontWeight: 'bold',
+                    opacity: googlePasswordLoading ? 0.85 : 1
+                  }}
+                >
+                  {googlePasswordLoading ? 'Verifying…' : 'Verify & Sign In →'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Registration Email OTP Verification Modal */}
+      {showOtpModal && (
+        <div className="auth-modal-overlay" style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="auth-modal-card" style={{
+            background: '#0b1d31',
+            border: '1px solid #20c6c6',
+            borderRadius: '16px',
+            padding: '24px',
+            width: 'min(90%, 420px)',
+            maxWidth: '420px',
+            boxSizing: 'border-box'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#8ce7e7', fontSize: '18px' }}>📧 Verify Your Email</h3>
+            <p style={{ color: '#a9bad0', fontSize: '13px', margin: '0 0 16px 0', lineHeight: 1.6 }}>
+              We sent a 6-digit verification code to <strong style={{ color: '#e2e8f0' }}>{registeredEmail}</strong>.
+              Your account is <strong style={{ color: '#fbbf24' }}>not created yet</strong> — enter the code below to
+              complete and activate your registration.
+            </p>
+
+            <form onSubmit={handleVerifyOtp}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#a9bad0', marginBottom: '6px' }}>Enter 6-Digit OTP</label>
+                <input
+                  type="text"
+                  placeholder="123456"
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                  maxLength="6"
+                  autoFocus
+                  required
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,.08)',
+                    border: '1px solid rgba(255,255,255,.16)',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    color: '#fff',
+                    fontSize: '20px',
+                    letterSpacing: '8px',
+                    textAlign: 'center',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {otpError && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: '#fecaca',
+                  background: 'rgba(239,68,68,.12)',
+                  border: '1px solid rgba(239,68,68,.35)'
+                }}>
+                  {otpError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowOtpModal(false)}
+                  style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={otpLoading}
+                  style={{
+                    background: 'linear-gradient(90deg, #20c6c6, #4f8cff)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    cursor: otpLoading ? 'progress' : 'pointer',
+                    fontWeight: 'bold',
+                    opacity: otpLoading ? 0.85 : 1
+                  }}
+                >
+                  {otpLoading ? 'Verifying…' : 'Verify & Create Account →'}
+                </button>
+              </div>
+            </form>
+
+            {/* Resend OTP */}
+            <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '12px', color: '#a9bad0' }}>
+              Didn't receive the code?{' '}
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={otpResendCooldown > 0 || otpLoading}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: otpResendCooldown > 0 ? '#71869f' : '#8ce7e7',
+                  fontSize: '12px',
+                  cursor: otpResendCooldown > 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: '600',
+                  textDecoration: 'underline'
+                }}
+              >
+                {otpResendCooldown > 0 ? `Resend in ${otpResendCooldown}s` : 'Resend OTP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ textAlign: 'center', color: '#71869f', fontSize: '.78rem', marginTop: '1.5rem' }}>
         SHM Monitoring System • Secure Encrypted Registration

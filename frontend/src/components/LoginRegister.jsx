@@ -1,36 +1,50 @@
 import React, { useState } from 'react';
 import { GOOGLE_CLIENT_ID, API_BASE_URL } from '../config';
+import { useOverlayHistory } from '../utils/historyBack';
 
 function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) {
-  // 1: Name Step, 2: Sign-In Page (with Role selection on top + Forgot Password Modal)
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('Public Citizen');
 
-  // Forgot Password Modal State
   const [showForgot, setShowForgot] = useState(false);
   const [forgotTarget, setForgotTarget] = useState('');
-  const [forgotType, setForgotType] = useState('email'); // 'email' or 'mobile'
+  const [forgotType, setForgotType] = useState('email');
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
-  const [demoOtp, setDemoOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  // Google button state (dark theme accent)
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
+  const [alertAction, setAlertAction] = useState(null);
+
   const [googleHover, setGoogleHover] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState('');
 
-  // Handle Step 1 -> Step 2
+  const [showGooglePassword, setShowGooglePassword] = useState(false);
+  const [googlePassword, setGooglePassword] = useState('');
+  const [googlePasswordLoading, setGooglePasswordLoading] = useState(false);
+  const [googlePasswordError, setGooglePasswordError] = useState('');
+  const [pendingGoogle, setPendingGoogle] = useState(null);
+
+  // Mobile Back button closes any open auth dialog (OTP / Google password /
+  // access-denied alert) instead of leaving the website.
+  const authSubModalOpen = showForgot || showGooglePassword || showAlert;
+  useOverlayHistory(authSubModalOpen, () => {
+    setShowForgot(false);
+    setShowGooglePassword(false);
+    setShowAlert(false);
+  });
+
   const handleNameNext = (e) => {
     e.preventDefault();
     if (!name.trim()) return alert('Please enter your full name first.');
     setStep(2);
   };
 
-  // Handle Sign-In Submit (with selectedRole check for warnings)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password) return alert('Enter both email and password.');
@@ -56,7 +70,11 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
           pinCode: data.pinCode || ''
         });
       } else {
-        alert(data.message || 'Invalid email or password.');
+        setAlertMsg('Please register and login');
+        setAlertAction(() => () => {
+          if (onSwitchToRegister) onSwitchToRegister();
+        });
+        setShowAlert(true);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -64,13 +82,12 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     }
   };
 
-  // Request OTP for Forgot Password
   const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!forgotTarget.trim()) return alert(`Enter your registered ${forgotType}`);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/send-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target: forgotTarget, type: forgotType })
@@ -78,7 +95,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
       const data = await res.json();
       if (data.success) {
         setOtpSent(true);
-        setDemoOtp(data.otpDemo || '');
         alert(data.message);
       } else {
         alert(data.message || 'Failed to send OTP');
@@ -89,7 +105,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     }
   };
 
-  // Verify OTP and Reset Password
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!otpInput || !newPassword) return alert('Please enter OTP and New Password');
@@ -117,7 +132,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     }
   };
 
-  // --- Official Google OAuth 2.0 Integration ------------------------------
   const loadGoogleScript = () =>
     new Promise((resolve, reject) => {
       if (window.google?.accounts?.oauth2) return resolve();
@@ -144,22 +158,74 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     };
   };
 
-  const syncGoogleProfile = async (accessToken, profile) => {
-    const body = { fallbackName: profile.fullName, fallbackEmail: profile.email };
-    if (accessToken) body.accessToken = accessToken;
+  const googleAuthRequest = async (body) => {
     const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Google sign-in failed on the server.');
+    return { ok: res.ok, status: res.status, data };
+  };
+
+  const syncGoogleProfile = async (accessToken, profile) => {
+    const body = { fallbackName: profile.fullName, fallbackEmail: profile.email };
+    if (accessToken) body.accessToken = accessToken;
+    const { ok, status, data } = await googleAuthRequest(body);
+    if (!ok || !data.success) {
+      const err = new Error('Please register and login');
+      err.accountNotFound = true;
+      throw err;
     }
     if (data.token) {
       localStorage.setItem('shm_auth_token', data.token);
     }
     return data;
+  };
+
+  const handleGooglePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!pendingGoogle) return;
+    if (!googlePassword.trim()) return alert('Please enter your account password to complete Google login.');
+
+    setGooglePasswordLoading(true);
+    setGooglePasswordError('');
+    try {
+      const { accessToken, profile } = pendingGoogle;
+      const { ok, data } = await googleAuthRequest({
+        accessToken,
+        email: profile.email,
+        password: googlePassword
+      });
+      if (!ok || !data.success) {
+        throw new Error(data.message || 'Password verification failed. Please try again.');
+      }
+      if (data.token) {
+        localStorage.setItem('shm_auth_token', data.token);
+      }
+      alert(`Signed in successfully via Google! Welcome back, ${data.fullName || profile.fullName}`);
+      onLoginSuccess({
+        role: data.role || role || 'Public Citizen',
+        fullName: data.fullName || profile.fullName,
+        email: data.email || profile.email,
+        phone: data.phone || '',
+        city: data.city || 'Lucknow',
+        state: data.state || 'Uttar Pradesh',
+        address: data.address || '',
+        pinCode: data.pinCode || '',
+        authProvider: 'google',
+        token: data.token || null
+      });
+      setShowGooglePassword(false);
+      setPendingGoogle(null);
+      setGooglePassword('');
+    } catch (err) {
+      console.warn('Google password verification failed:', err?.message);
+      setGooglePasswordError(err?.message || 'Password verification failed. Please try again.');
+      setGooglePassword('');
+    } finally {
+      setGooglePasswordLoading(false);
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -192,6 +258,14 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
       const verifiedProfile = await verifyGoogleAccount(tokenResponse.access_token);
       const data = await syncGoogleProfile(tokenResponse.access_token, verifiedProfile);
 
+      if (data.needsPassword) {
+        setPendingGoogle({ accessToken: tokenResponse.access_token, profile: verifiedProfile });
+        setGooglePassword('');
+        setGooglePasswordError('');
+        setShowGooglePassword(true);
+        return;
+      }
+
       onLoginSuccess({
         role: data.role || role || 'Public Citizen',
         fullName: data.fullName || verifiedProfile.fullName,
@@ -206,7 +280,11 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
       });
     } catch (err) {
       console.warn('Google sign-in error:', err);
-      setGoogleError(err?.message || 'Google Sign-In failed. Please try again.');
+      setAlertMsg('Please register and login');
+      setAlertAction(() => () => {
+        if (onSwitchToRegister) onSwitchToRegister();
+      });
+      setShowAlert(true);
     } finally {
       setGoogleLoading(false);
     }
@@ -228,10 +306,8 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
       padding: '2rem 5vw 3rem',
       boxSizing: 'border-box'
     }}>
-      {/* Brand Header with Back Button on Top Left */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          {/* Always Visible Back Button */}
           <button 
             onClick={() => {
               if (onBackToLanding) {
@@ -264,7 +340,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
         </div>
       </div>
 
-      {/* Main Grid Content */}
       <div className="auth-main" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
@@ -274,7 +349,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
         width: '100%',
         margin: '2rem auto'
       }}>
-        {/* Left Column: Hero Details */}
         <div className="auth-hero">
           <span style={{
             display: 'inline-block',
@@ -316,7 +390,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
           </div>
         </div>
 
-        {/* Right Column: Glassmorphism Action Panel */}
         <div className="auth-panel" style={{
           background: 'rgba(255,255,255,.075)',
           border: '1px solid rgba(255,255,255,.13)',
@@ -325,7 +398,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
           boxShadow: '0 18px 55px rgba(0,0,0,.25)',
           backdropFilter: 'blur(18px)'
         }}>
-          {/* STEP 1: Name Input */}
           {step === 1 && (
             <form onSubmit={handleNameNext}>
               <h2 style={{ marginTop: 0, fontSize: '1.55rem', color: '#fff' }}>Welcome aboard</h2>
@@ -370,10 +442,8 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
             </form>
           )}
 
-          {/* STEP 2: Sign-In Page with Top Role Selection */}
           {step === 2 && (
             <form onSubmit={handleLoginSubmit}>
-              {/* TOP ROLE SELECTOR (ONLY PUBLIC CITIZEN & ADMIN) */}
               <div className="auth-signin-top" style={{ marginBottom: '1.2rem' }}>
                 <label style={{ display: 'block', color: '#8ce7e7', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
                   SELECT ACCESS ROLE
@@ -449,7 +519,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
                 />
               </div>
 
-              {/* Forgot Password Link */}
               <div style={{ textAlign: 'right', marginBottom: '1.2rem' }}>
                 <button
                   type="button"
@@ -477,14 +546,12 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
                 Sign in securely →
               </button>
 
-              {/* Divider */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '4px 0 14px' }}>
                 <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,.14)' }} />
                 <span style={{ fontSize: '11px', color: '#71869f', letterSpacing: '1px' }}>OR</span>
                 <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,.14)' }} />
               </div>
 
-              {/* Continue with Google */}
               <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '.8rem' }}>
                 <button
                   type="button"
@@ -526,7 +593,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
                 )}
               </div>
 
-              {/* Switch to Register */}
               <div style={{ textAlign: 'center', marginBottom: '.8rem', fontSize: '12px', color: '#a9bad0' }}>
                 New to SHM Monitor?{' '}
                 <button
@@ -542,12 +608,10 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
         </div>
       </div>
 
-      {/* Footer */}
       <div style={{ textAlign: 'center', color: '#71869f', fontSize: '.78rem', marginTop: '1.5rem' }}>
         Standalone prototype • Authentication and permissions integrated
       </div>
 
-      {/* Forgot Password OTP Modal */}
       {showForgot && (
         <div className="auth-modal-overlay" style={{
           position: 'fixed',
@@ -644,11 +708,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
               </form>
             ) : (
               <form onSubmit={handleResetPassword}>
-                {demoOtp && (
-                  <div style={{ background: 'rgba(234, 179, 8, 0.15)', border: '1px solid #eab308', padding: '8px', borderRadius: '6px', color: '#fef08a', fontSize: '12px', marginBottom: '12px' }}>
-                    Demo View OTP: <b>{demoOtp}</b>
-                  </div>
-                )}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', fontSize: '12px', color: '#a9bad0', marginBottom: '6px' }}>Enter 6-Digit OTP</label>
                   <input
@@ -707,6 +766,145 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {showGooglePassword && (
+        <div className="auth-modal-overlay" style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div className="auth-modal-card" style={{
+            background: '#0b1d31',
+            border: '1px solid #8ce7e7',
+            borderRadius: '16px',
+            padding: '24px',
+            width: 'min(90%, 420px)',
+            maxWidth: '420px',
+            boxSizing: 'border-box'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#8ce7e7', fontSize: '18px' }}>🔐 Verify Your Account</h3>
+            <p style={{ color: '#a9bad0', fontSize: '13px', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Your Google account <strong style={{ color: '#e2e8f0' }}>{pendingGoogle?.profile?.email || ''}</strong> is already registered.
+              Please enter your account password to complete the secure Google login.
+            </p>
+
+            <form onSubmit={handleGooglePasswordSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#a9bad0', marginBottom: '6px' }}>Registered Account Password</label>
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={googlePassword}
+                  onChange={(e) => setGooglePassword(e.target.value)}
+                  autoFocus
+                  required
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,.08)',
+                    border: '1px solid rgba(255,255,255,.16)',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    color: '#fff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {googlePasswordError && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: '#fecaca',
+                  background: 'rgba(239,68,68,.12)',
+                  border: '1px solid rgba(239,68,68,.35)'
+                }}>
+                  {googlePasswordError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowGooglePassword(false); setPendingGoogle(null); setGooglePassword(''); }}
+                  style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={googlePasswordLoading}
+                  style={{
+                    background: 'linear-gradient(90deg, #20c6c6, #4f8cff)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    cursor: googlePasswordLoading ? 'progress' : 'pointer',
+                    fontWeight: 'bold',
+                    opacity: googlePasswordLoading ? 0.85 : 1
+                  }}
+                >
+                  {googlePasswordLoading ? 'Verifying…' : 'Verify & Sign In →'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAlert && (
+        <div className="auth-modal-overlay" style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999
+        }}>
+          <div className="auth-modal-card" style={{
+            background: '#0b1d31',
+            border: '1px solid #f59e0b',
+            borderRadius: '16px',
+            padding: '24px',
+            width: 'min(90%, 420px)',
+            maxWidth: '420px',
+            boxSizing: 'border-box'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#fbbf24', fontSize: '18px' }}>⚠️ Access Denied</h3>
+            <p style={{ color: '#e2e8f0', fontSize: '13px', margin: '0 0 18px 0', lineHeight: 1.6 }}>
+              {alertMsg}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAlert(false);
+                  if (alertAction) alertAction();
+                  setAlertAction(null);
+                }}
+                style={{
+                  background: 'linear-gradient(90deg, #f59e0b, #ef4444)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                OK — Go to Register →
+              </button>
+            </div>
           </div>
         </div>
       )}
