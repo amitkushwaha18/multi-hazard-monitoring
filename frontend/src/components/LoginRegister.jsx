@@ -11,7 +11,6 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotTarget, setForgotTarget] = useState('');
-  const [forgotType, setForgotType] = useState('email');
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -84,13 +83,13 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!forgotTarget.trim()) return alert(`Enter your registered ${forgotType}`);
+    if (!forgotTarget.trim()) return alert('Enter your registered email address');
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/send-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: forgotTarget, type: forgotType })
+        body: JSON.stringify({ target: forgotTarget, type: 'email' })
       });
       const data = await res.json();
       if (data.success) {
@@ -635,46 +634,13 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
             
             {!otpSent ? (
               <form onSubmit={handleSendOtp}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setForgotType('email')}
-                    style={{
-                      flex: 1,
-                      padding: '6px',
-                      borderRadius: '6px',
-                      border: forgotType === 'email' ? '1px solid #8ce7e7' : '1px solid rgba(255,255,255,0.2)',
-                      background: forgotType === 'email' ? 'rgba(32,198,198,0.2)' : 'transparent',
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                  >
-                    📧 Email OTP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForgotType('mobile')}
-                    style={{
-                      flex: 1,
-                      padding: '6px',
-                      borderRadius: '6px',
-                      border: forgotType === 'mobile' ? '1px solid #8ce7e7' : '1px solid rgba(255,255,255,0.2)',
-                      background: forgotType === 'mobile' ? 'rgba(32,198,198,0.2)' : 'transparent',
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                  >
-                    📱 Mobile OTP
-                  </button>
-                </div>
-
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', color: '#a9bad0', marginBottom: '6px' }}>
-                    {forgotType === 'email' ? 'Registered Email Address' : 'Registered Mobile Number'}
+                    Registered Email Address
                   </label>
                   <input
-                    type={forgotType === 'email' ? 'email' : 'text'}
-                    placeholder={forgotType === 'email' ? 'email@domain.com' : 'enter contact no.'}
+                    type="email"
+                    placeholder="email@domain.com"
                     value={forgotTarget}
                     onChange={(e) => setForgotTarget(e.target.value)}
                     required

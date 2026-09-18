@@ -64,6 +64,7 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
         })
       });
       if (res.ok) return true;
+      console.warn(`[EMAIL OTP] Postmark rejected email (HTTP ${res.status}): ${await res.text().catch(() => '')}`);
     } catch (postmarkErr) {
       console.warn('[EMAIL OTP] Postmark fallback to Nodemailer:', postmarkErr.message);
     }
@@ -79,7 +80,11 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (err) {
-    console.error('[EMAIL OTP] Failed to send email:', err.message);
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('[EMAIL OTP] OTP delivery FAILED: SMTP credentials missing (set EMAIL_USER / EMAIL_PASS or POSTMARK_SERVER_TOKEN in backend/.env).');
+    } else {
+      console.error('[EMAIL OTP] Failed to send email via SMTP:', err.message);
+    }
     return false;
   }
 };
@@ -287,32 +292,30 @@ router.post('/login', async (req, res) => {
 
 router.post('/send-password-otp', async (req, res) => {
   try {
-    const { target, type } = req.body || {};
-    if (!target) {
-      return res.status(400).json({ success: false, message: 'Target email or mobile number is required' });
+    const { target, email } = req.body || {};
+    const rawTarget = String(target || email || '').trim();
+    if (!rawTarget) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
     }
 
-    const cleanTarget = target.toLowerCase().trim();
-    const userExists = await User.findOne({
-      $or: [{ email: cleanTarget }, { phone: cleanTarget }, { mobileNumber: cleanTarget }]
-    });
+    const cleanTarget = rawTarget.toLowerCase().trim();
+    const userExists = await User.findOne({ email: cleanTarget });
 
     if (!userExists) {
-      return res.status(404).json({ success: false, message: 'No account found registered with these details.' });
+      return res.status(404).json({ success: false, message: 'No account found registered with this email.' });
     }
 
     const generatedOtp = generateOtp();
     resetOtpStore.set(cleanTarget, { otp: generatedOtp, expires: Date.now() + OTP_TTL_MS });
 
-    if (type === 'email' || cleanTarget.includes('@')) {
-      const sent = await sendEmailOtp({ to: cleanTarget, otp: generatedOtp, purpose: 'reset' });
-      if (!sent) {
-        return res.status(500).json({ success: false, message: 'Failed to send OTP.' });
-      }
+    const sent = await sendEmailOtp({ to: cleanTarget, otp: generatedOtp, purpose: 'reset' });
+    if (!sent) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP. Please try again later.' });
     }
 
-    return res.status(200).json({ success: true, message: `OTP sent successfully to your registered ${type}!` });
+    return res.status(200).json({ success: true, message: 'OTP sent successfully to your registered email!' });
   } catch (error) {
+    console.error('[PASSWORD OTP] Failed to send OTP:', error.message);
     return res.status(500).json({ success: false, message: 'Failed to send OTP.', error: error.message });
   }
 });
