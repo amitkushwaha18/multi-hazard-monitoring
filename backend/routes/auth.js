@@ -13,7 +13,9 @@ const resetOtpStore = new Map();
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -22,7 +24,7 @@ const transporter = nodemailer.createTransport({
 
 const sendEmailOtp = async ({ to, otp, purpose }) => {
   const toAddress = String(to || '').toLowerCase().trim();
-  if (!toAddress) return false;
+  if (!toAddress) throw new Error('No recipient email address provided');
 
   const isRegister = purpose === 'register';
   const subject = isRegister
@@ -64,28 +66,29 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
         })
       });
       if (res.ok) return true;
-      console.warn(`[EMAIL OTP] Postmark rejected email (HTTP ${res.status}): ${await res.text().catch(() => '')}`);
+      const postmarkBody = await res.text().catch(() => '');
+      console.error(`[EMAIL OTP] Postmark returned HTTP ${res.status}. Falling back to SMTP.`, postmarkBody ? postmarkBody : '');
     } catch (postmarkErr) {
-      console.warn('[EMAIL OTP] Postmark fallback to Nodemailer:', postmarkErr.message);
+      console.error('[EMAIL OTP] Postmark dispatch failed, falling back to Nodemailer (SMTP):', postmarkErr);
     }
   }
 
+  const mailOptions = {
+    from: `"SHM Multi-Hazard Security" <${process.env.EMAIL_USER || 'support@shm-monitor.local'}>`,
+    to: toAddress,
+    subject,
+    html
+  };
   try {
-    const mailOptions = {
-      from: `"SHM Multi-Hazard Security" <${process.env.EMAIL_USER || 'support@shm-monitor.local'}>`,
-      to: toAddress,
-      subject,
-      html
-    };
     await transporter.sendMail(mailOptions);
     return true;
   } catch (err) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error('[EMAIL OTP] OTP delivery FAILED: SMTP credentials missing (set EMAIL_USER / EMAIL_PASS or POSTMARK_SERVER_TOKEN in backend/.env).');
-    } else {
-      console.error('[EMAIL OTP] Failed to send email via SMTP:', err.message);
+      console.error('[EMAIL OTP] OTP delivery FAILED: SMTP credentials missing (set EMAIL_USER / EMAIL_PASS or POSTMARK_SERVER_TOKEN in backend/.env).', err);
+      throw new Error('OTP delivery failed: Email service credentials are missing on the server (EMAIL_USER / EMAIL_PASS).');
     }
-    return false;
+    console.error('[EMAIL OTP] Failed to send email via SMTP:', err);
+    throw new Error(`Failed to send OTP email: ${err.message}`);
   }
 };
 
@@ -143,7 +146,14 @@ router.post('/send-otp', async (req, res) => {
       }
     });
 
-    const sent = await sendEmailOtp({ to: normalizedEmail, otp: generatedOtp, purpose: 'register' });
+    let sent = false;
+    try {
+      sent = await sendEmailOtp({ to: normalizedEmail, otp: generatedOtp, purpose: 'register' });
+    } catch (sendErr) {
+      console.error('Registration OTP send error:', sendErr);
+      registerOtpStore.delete(normalizedEmail);
+      return res.status(500).json({ success: false, message: sendErr.message });
+    }
     if (!sent) {
       registerOtpStore.delete(normalizedEmail);
       return res.status(500).json({ success: false, message: 'Failed to send the verification email. Please try again.' });
@@ -310,13 +320,13 @@ router.post('/send-password-otp', async (req, res) => {
 
     const sent = await sendEmailOtp({ to: cleanTarget, otp: generatedOtp, purpose: 'reset' });
     if (!sent) {
-      return res.status(500).json({ success: false, message: 'Failed to send OTP. Please try again later.' });
+      throw new Error('Failed to send OTP email via both Postmark and SMTP.');
     }
 
-    return res.status(200).json({ success: true, message: 'OTP sent successfully to your registered email!' });
+    return res.status(200).json({ success: true, message: 'OTP sent successfully' });
   } catch (error) {
-    console.error('[PASSWORD OTP] Failed to send OTP:', error.message);
-    return res.status(500).json({ success: false, message: 'Failed to send OTP.', error: error.message });
+    console.error('[PASSWORD OTP] Failed to send OTP:', error);
+    return res.status(200).json({ success: false, message: error.message });
   }
 });
 
