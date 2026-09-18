@@ -362,6 +362,34 @@ router.post('/reset-password-otp', async (req, res) => {
   }
 });
 
+// Admin Dashboard: Fetch All Registered Users from MongoDB
+router.get('/users', async (req, res) => {
+  try {
+    const users = await User.find({}).sort({ createdAt: -1 });
+    return res.status(200).json(
+      users.map((u) => ({
+        _id: u._id,
+        fullName: u.fullName || u.name || 'User',
+        name: u.name || u.fullName || '',
+        email: u.email,
+        phone: u.phone || '',
+        mobileNumber: u.mobileNumber || '',
+        role: u.role || 'Public Citizen',
+        createdAt: u.createdAt,
+        city: u.city || '',
+        state: u.state || ''
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching registered users:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error fetching registered users',
+      error: error.message
+    });
+  }
+});
+
 // Google OAuth Route
 router.post('/google', async (req, res) => {
   try {

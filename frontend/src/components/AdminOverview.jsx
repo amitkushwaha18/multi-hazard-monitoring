@@ -27,6 +27,7 @@ const AdminOverview = ({ user, onLogout }) => {
 
   // Real-time Admin Monitoring & User Management States
   const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [activeUserTab, setActiveUserTab] = useState('citizens');
   const [usersLoading, setUsersLoading] = useState(true);
   const [monitorStatus, setMonitorStatus] = useState(null);
   const [triggeringScan, setTriggeringScan] = useState(false);
@@ -40,6 +41,10 @@ const AdminOverview = ({ user, onLogout }) => {
   const profile = user || {};
   const fullName = profile.fullName || 'Master Administrator';
   const role = profile.role || 'System Authority';
+
+  const publicCitizens = registeredUsers.filter((u) => u.role === 'Public Citizen' || u.role !== 'Authority/Admin');
+  const authorityUsers = registeredUsers.filter((u) => u.role === 'Authority/Admin');
+  const visibleUsers = activeUserTab === 'authority' ? authorityUsers : publicCitizens;
 
   const handleLocationSelect = (loc) => {
     setSelectedLocation(loc);
@@ -88,19 +93,16 @@ const AdminOverview = ({ user, onLogout }) => {
       // 1. Fetch Registered Users
       try {
         setUsersLoading(true);
-        const usersRes = await axios.get(`${API_BASE_URL}/api/users`).catch(() => null);
+        const usersRes = await axios.get(`${API_BASE_URL}/api/auth/users`).catch(() => null);
         if (usersRes?.data && Array.isArray(usersRes.data)) {
           setRegisteredUsers(usersRes.data);
         } else {
-          // Fallback sample view if endpoint is initializing
-          setRegisteredUsers([
-            { _id: '1', fullName: fullName, email: profile.email || 'admin@shm.gov.in', role: role, city: profile.city || 'Lucknow', createdAt: new Date().toISOString() },
-            { _id: '2', fullName: 'Amit Kushwaha', email: 'amit.kushwaha3@s.amity.edu', role: 'Citizen', city: 'Lucknow', createdAt: '2026-09-18T10:30:00Z' },
-            { _id: '3', fullName: 'Dr. S. Sharma', email: 'sharma.ndma@gov.in', role: 'Authority', city: 'New Delhi', createdAt: '2026-09-17T14:15:00Z' }
-          ]);
+          console.warn('Users endpoint returned an unexpected response:', usersRes?.data);
+          setRegisteredUsers([]);
         }
       } catch (err) {
         console.error('Error fetching users:', err.message);
+        setRegisteredUsers([]);
       } finally {
         setUsersLoading(false);
       }
@@ -210,7 +212,9 @@ const AdminOverview = ({ user, onLogout }) => {
           <StatCard title="SYSTEM STATUS" value="OPERATIONAL 🟢" subtext="Live Backend Engine" color="#22c55e" />
           <StatCard title="BACKGROUND MONITOR" value={monitorStatus?.enabled ? 'ACTIVE (5m Scan)' : 'RUNNING'} subtext={`Last Scan: ${systemMetrics.lastScanTime}`} color="#38bdf8" />
           <StatCard title="ACTIVE HAZARD ALERTS" value={systemMetrics.activeAlertsCount.toString()} subtext="Automated Dispatch Ready" color="#f97316" />
-          <StatCard title="TOTAL REGISTERED USERS" value={registeredUsers.length.toString()} subtext="In Database System" color="#a855f7" />
+          <StatCard title="TOTAL REGISTERED USERS" value={registeredUsers.length.toString()} subtext={`${publicCitizens.length} Citizens · ${authorityUsers.length} Admin`} color="#a855f7" />
+          <StatCard title="PUBLIC CITIZENS" value={publicCitizens.length.toString()} subtext="Registered Citizen Accounts" color="#22c55e" />
+          <StatCard title="AUTHORITY / ADMIN USERS" value={authorityUsers.length.toString()} subtext="Authorized Admin Accounts" color="#ef4444" />
         </div>
 
         {/* Real-time Manual Override & Scan Control Bar */}
@@ -311,6 +315,73 @@ const AdminOverview = ({ user, onLogout }) => {
             </span>
           </div>
 
+          {/* Role-Based Stats Counters */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.35)',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#86efac', letterSpacing: '0.03em' }}>👨‍👩‍👧 PUBLIC CITIZENS REGISTERED</span>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#22c55e' }}>{publicCitizens.length}</span>
+            </div>
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fca5a5', letterSpacing: '0.03em' }}>🛡️ AUTHORITY / ADMIN USERS</span>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444' }}>{authorityUsers.length}</span>
+            </div>
+          </div>
+
+          {/* View Tabs */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setActiveUserTab('citizens')}
+              style={{
+                background: activeUserTab === 'citizens' ? 'rgba(34, 197, 94, 0.15)' : '#020617',
+                color: activeUserTab === 'citizens' ? '#86efac' : '#94a3b8',
+                border: `1px solid ${activeUserTab === 'citizens' ? '#22c55e' : '#334155'}`,
+                padding: '8px 18px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              👨‍👩‍👧 Public Citizens ({publicCitizens.length})
+            </button>
+            <button
+              onClick={() => setActiveUserTab('authority')}
+              style={{
+                background: activeUserTab === 'authority' ? 'rgba(239, 68, 68, 0.15)' : '#020617',
+                color: activeUserTab === 'authority' ? '#fca5a5' : '#94a3b8',
+                border: `1px solid ${activeUserTab === 'authority' ? '#ef4444' : '#334155'}`,
+                padding: '8px 18px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🛡️ Authority / Admin Users ({authorityUsers.length})
+            </button>
+          </div>
+
           {usersLoading ? (
             <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '14px' }}>
               ⏳ Loading registered users directory...
@@ -329,11 +400,19 @@ const AdminOverview = ({ user, onLogout }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {registeredUsers.map((u, idx) => (
+                  {visibleUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                        No registered users in this category yet.
+                      </td>
+                    </tr>
+                  ) : visibleUsers.map((u, idx) => {
+                    const isAdmin = u.role === 'Authority/Admin';
+                    return (
                     <tr key={u._id || idx} style={{ borderBottom: '1px solid #1e293b', transition: 'background 0.2s' }}>
                       <td style={{ padding: '12px 16px', color: '#64748b' }}>{idx + 1}</td>
                       <td style={{ padding: '12px 16px', fontWeight: 'bold', color: '#f8fafc' }}>
-                        {u.fullName || 'Citizen User'}
+                        {u.fullName || u.name || 'Citizen User'}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#38bdf8' }}>
                         {u.email}
@@ -344,15 +423,15 @@ const AdminOverview = ({ user, onLogout }) => {
                           fontWeight: 'bold',
                           padding: '3px 8px',
                           borderRadius: '12px',
-                          background: u.role === 'Admin' || u.role === 'Authority' ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)',
-                          color: u.role === 'Admin' || u.role === 'Authority' ? '#fca5a5' : '#86efac',
-                          border: `1px solid ${u.role === 'Admin' || u.role === 'Authority' ? '#ef4444' : '#22c55e'}`
+                          background: isAdmin ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)',
+                          color: isAdmin ? '#fca5a5' : '#86efac',
+                          border: `1px solid ${isAdmin ? '#ef4444' : '#22c55e'}`
                         }}>
                           {u.role || 'Public Citizen'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#cbd5e1' }}>
-                        📍 {u.city || 'Lucknow'}
+                        📍 {(u.city && u.city !== '' ? u.city : '—')}{u.state && u.state !== '' ? `, ${u.state}` : ''}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{ color: '#22c55e', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -360,7 +439,8 @@ const AdminOverview = ({ user, onLogout }) => {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
