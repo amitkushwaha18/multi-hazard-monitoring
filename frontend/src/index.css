@@ -1,7 +1,9 @@
-/* Base Map Container Styles */
-body {
+/* Base Map Container & Universal Global Styles */
+html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -9,6 +11,41 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: #020617;
   color: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   UNIVERSAL BACK NAVIGATION BUTTON STYLING
+   ========================================================================== */
+.btn-back-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.btn-back-nav:hover {
+  background: rgba(51, 65, 85, 0.95);
+  color: #38bdf8;
+  border-color: #38bdf8;
+  transform: translateX(-2px);
+}
+
+.btn-back-nav:active {
+  transform: translateX(0);
 }
 
 /* ==========================================================================
@@ -60,7 +97,7 @@ body {
 }
 
 /* ==========================================================================
-   2. SENTINEL LAND SURFACE TEMPERATURE SQUARE BADGE (EXACT PHOTO MATCH)
+   2. SENTINEL LAND SURFACE TEMPERATURE SQUARE BADGE
    ========================================================================== */
 .sentinel-badge-container {
   background: transparent !important;
@@ -93,7 +130,7 @@ body {
 }
 
 /* ==========================================================================
-   3. IN-APP WARNING TOAST ANIMATION
+   3. IN-APP WARNING TOAST ANIMATION & HEAT MAP DOTS
    ========================================================================== */
 @keyframes slideInRight {
   from {
@@ -106,13 +143,11 @@ body {
   }
 }
 
-/* Exact Sentinel Thermal Blend Effect */
 .thermal-raster-canvas {
   filter: contrast(1.4) saturate(2.5) brightness(0.95);
   mix-blend-mode: hard-light;
 }
 
-/* Custom Heat Dot for City Markers */
 .heat-dot-container {
   background: transparent !important;
   border: none !important;
@@ -140,4 +175,257 @@ body {
   font-size: 13px;
   font-weight: 700;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+/* ==========================================================================
+   4. SKELETON SHIMMER (used while Render backend wakes from cold start)
+   ========================================================================== */
+@keyframes mh-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes mh-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes mh-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.4; }
+}
+
+.mh-skeleton {
+  background: linear-gradient(90deg, rgba(148,163,184,0.10) 25%, rgba(148,163,184,0.22) 50%, rgba(148,163,184,0.10) 75%);
+  background-size: 200% 100%;
+  animation: mh-skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+  color: transparent !important;
+  user-select: none;
+  pointer-events: none;
+}
+
+.mh-skeleton-pill {
+  text-align: center;
+}
+
+.mh-skeleton-pill::after {
+  content: '…';
+  color: #64748b;
+  display: inline-block;
+  animation: mh-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   5. UNIVERSAL RESPONSIVE LAYOUT (MOBILE / TABLET / DESKTOP)
+   ========================================================================== */
+
+/* Global overflow + width hardening for every screen width */
+#root,
+.app-container,
+.deep-space-bg {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Media elements never push past the viewport */
+img { max-width: 100%; height: auto; }
+table { max-width: 100%; }
+svg { max-width: 100%; }
+
+/* Responsive helper: panel header / row with a title + badge that wraps on narrow screens */
+.mh-flex-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.mh-flex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------------- Tablet & Small Laptop (<= 1024px) ---------------- */
+@media (max-width: 1024px) {
+  .lp-nav { padding: 14px 24px !important; }
+  .lp-nav-links { gap: 18px !important; }
+  .lp-hero {
+    grid-template-columns: 1fr !important;
+    padding: 56px 28px 46px !important;
+    gap: 32px !important;
+  }
+  .lp-hero h1 { font-size: clamp(30px, 5vw, 44px) !important; }
+  .lp-hero p { max-width: 100% !important; }
+  .lp-hero-card { height: auto !important; min-height: 320px !important; padding: 20px !important; }
+  .lp-section { padding: 64px 28px !important; }
+  .lp-section-card { padding: 34px 30px !important; }
+  .db-main { padding: 24px 24px !important; }
+  .db-nav { padding: 12px 20px !important; }
+  .fdm-scroll, .cdm-scroll { padding: 24px 24px 36px !important; }
+}
+
+/* ---------------- Smaller Tablets (<= 900px) ---------------- */
+@media (max-width: 900px) {
+  .grid-responsive-2col { gap: 16px !important; }
+  .eqm-split { gap: 16px !important; }
+}
+
+/* ---------------- Mobile (< = 768px) ---------------- */
+@media (max-width: 768px) {
+  html { -webkit-text-size-adjust: 100%; }
+
+  /* Navigation adjustments */
+  .lp-nav { padding: 10px 16px !important; flex-wrap: wrap !important; row-gap: 12px !important; }
+  .lp-nav-brand { font-size: 15px !important; }
+  .lp-nav-links { gap: 12px !important; font-size: 12.5px !important; flex-wrap: wrap !important; row-gap: 8px !important; }
+  .lp-nav-links span { white-space: nowrap; cursor: pointer; }
+  .lp-nav-buttons { gap: 8px !important; }
+  .lp-nav-buttons button { padding: 7px 12px !important; font-size: 12.5px !important; }
+
+  /* Landing Page Optimizations */
+  .lp-hero { grid-template-columns: 1fr !important; }
+  .lp-hero h1 { font-size: clamp(26px, 7vw, 34px) !important; }
+  .lp-hero-badge { font-size: 11px !important; }
+  .lp-hero p { font-size: 14px !important; }
+
+  /* Disable heavy visual elements on phones to optimize rendering performance */
+  .meteor, .real-stone { display: none !important; }
+
+  .lp-section { padding: 50px 18px !important; }
+  .lp-section-card { padding: 28px 20px !important; }
+  .lp-section h2 { font-size: 26px !important; }
+  .lp-section h3 { font-size: 18px !important; }
+  .lp-hazard-card { padding: 22px 20px !important; }
+  .lp-feature-card { padding: 20px 18px !important; }
+  .lp-footer { padding: 28px 18px !important; }
+
+  /* Dashboard Nav + Main Container */
+  .db-nav { padding: 12px 16px !important; flex-wrap: wrap !important; gap: 10px !important; }
+  .db-nav .db-brand { font-size: 15px !important; }
+  .db-nav .db-role-chip { padding: 3px 8px !important; font-size: 10px !important; }
+  .db-main { padding: 18px 14px !important; }
+  .db-hero-row { align-items: flex-start !important; flex-direction: column !important; }
+  .db-hero-row h2 { font-size: 17px !important; }
+  .db-hero-row p { font-size: 12px !important; }
+  .db-profile-pills { width: 100% !important; }
+
+  .db-map { height: 52vh !important; }
+
+  /* Leaflet mobile polish — prevent controls/popups from overflowing the map */
+  .leaflet-container { font-size: 12px; }
+  .leaflet-popup-content { max-width: 240px !important; overflow-wrap: break-word; }
+  .leaflet-top, .leaflet-bottom { z-index: 400; }
+  .leaflet-pane, .leaflet-control { max-width: 100%; }
+
+  /* Search row responsive grid */
+  .hs-search-row { flex-direction: column !important; gap: 10px !important; }
+  .hs-search-row > div { width: 100% !important; }
+  .hs-search-row input, .hs-search-row button { width: 100% !important; }
+
+  /* Single Column Layouts on Mobile */
+  .db-grid2, .db-grid3, .grid-responsive-2col, .grid-responsive-3col {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Let every panel header / row wrap its badge & controls below the title */
+  .mh-flex-head, .mh-flex-row { flex-wrap: wrap !important; row-gap: 10px !important; }
+
+  /* Login / Register Shell */
+  .auth-shell { padding: 1.25rem 1rem 2rem !important; }
+  .auth-panel { padding: 18px !important; width: 100% !important; }
+  .auth-panel h1 { font-size: clamp(22px, 7vw, 30px) !important; }
+  .auth-hero h1 { font-size: 28px !important; }
+  .auth-signin-top { display: none !important; }
+  .reg-row { grid-template-columns: 1fr !important; }
+
+  /* Floating Jarvis Assistant Window */
+  .jarvis-root { right: 14px !important; bottom: 14px !important; }
+  .jarvis-window {
+    width: min(390px, calc(100vw - 28px)) !important;
+    height: min(540px, calc(100vh - 36px)) !important;
+  }
+  .jarvis-female-orb { width: 56px !important; height: 56px !important; font-size: 24px !important; }
+
+  /* Floating Raakshak AI Copilot launcher + window */
+  .mh-bot-fab {
+    width: 52px !important;
+    height: 52px !important;
+    font-size: 24px !important;
+    bottom: 18px !important;
+    right: 16px !important;
+  }
+  .mh-bot-window {
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    bottom: 84px !important;
+    height: min(68vh, 520px) !important;
+  }
+
+  /* Warning Toast Placement */
+  .mh-toast { right: 12px !important; left: 12px !important; top: 12px !important; max-width: none !important; }
+
+  /* Modal Overrides (full-screen hazard detail modals) */
+  .fdm-root > div:first-of-type, .cdm-root > div:first-of-type, .eqm-root > div:first-of-type {
+    padding: 12px 16px !important;
+    flex-wrap: wrap !important;
+    row-gap: 10px !important;
+  }
+  .fdm-root h1, .cdm-root h1, .eqm-root h1 { font-size: 16px !important; }
+  .fdm-scroll, .cdm-scroll, .eqm-scroll { padding: 18px 14px 32px !important; }
+
+  .fdm-scroll > div:first-of-type, .cdm-scroll > div:first-of-type, .eqm-split {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .fdm-scroll > div:first-of-type > div:first-child,
+  .cdm-scroll > div:first-of-type > div:first-child,
+  .eqm-split > div:first-child {
+    position: static !important;
+  }
+  .fdm-card, .cdm-card, .eqm-card { padding: 16px !important; }
+
+  /* Forgot-password / OTP popup adapts to the mobile viewport */
+  .auth-modal-overlay { padding: 14px; overflow-y: auto; }
+  .auth-modal-card { max-height: 90vh !important; overflow-y: auto !important; width: min(94%, 420px) !important; }
+}
+
+/* ---------------- Small Phones (<= 600px) ---------------- */
+@media (max-width: 600px) {
+  .lp-nav-buttons { width: 100% !important; justify-content: flex-end !important; }
+  .auth-main { gap: 2.2rem !important; }
+  .db-map { height: 48vh !important; }
+  .mh-cta-wide { width: 100% !important; }
+}
+
+/* ---------------- Very Small Phones (<= 480px) ---------------- */
+@media (max-width: 480px) {
+  .lp-nav-links { gap: 10px !important; font-size: 12px !important; }
+  .lp-hero { padding: 44px 16px 40px !important; }
+  .lp-section { padding: 42px 16px !important; }
+  .lp-hero-card { min-height: 280px !important; }
+  .db-nav .db-brand { font-size: 13.5px !important; }
+  .lp-hero-badge { flex-wrap: wrap !important; }
+  .auth-main { grid-template-columns: 1fr !important; }
+  .auth-hero h1 { font-size: 24px !important; }
+  .reg-statelist { grid-template-columns: 1fr !important; }
+  .jarvis-female-orb { width: 52px !important; height: 52px !important; font-size: 22px !important; }
+  .mh-bot-fab { width: 50px !important; height: 50px !important; font-size: 22px !important; }
+  .mh-bot-window { right: 10px !important; left: 10px !important; height: min(70vh, 500px) !important; }
+  .mh-flex-head, .mh-flex-row { gap: 8px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+  .scroll-fly-element { opacity: 1 !important; transform: none !important; }
 }

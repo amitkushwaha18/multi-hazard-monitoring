@@ -13,7 +13,7 @@ const ThermalDetailPanel = ({ thermalEvents = [] }) => {
       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
       marginTop: '20px'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      <div className="mh-flex-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#f97316' }}>
           🌡️ Active Thermal Stress & Heatwave Monitoring Zones
         </h2>
@@ -29,7 +29,7 @@ const ThermalDetailPanel = ({ thermalEvents = [] }) => {
             const isSevere = temp >= 38;
 
             return (
-              <div key={zone.id} style={{
+              <div key={zone.id} className="mh-flex-row" style={{
                 background: '#020617',
                 borderLeft: `4px solid ${isSevere ? '#ef4444' : '#f97316'}`,
                 padding: '12px',

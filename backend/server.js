@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const nodemailer = require('nodemailer');
+const { startHazardAlertService } = require('./services/hazardAlertService');
 const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
@@ -34,6 +37,11 @@ mongoose.connect(MONGO_URI)
   } catch (err) {
     console.log('Asset auto-seed skipped:', err.message);
   }
+
+  // Start the automated hazard alert monitoring service (server-side background job).
+  // It fetches Earthquake/Cyclone/Flood risk levels and dispatches Postmark
+  // alert emails to every registered user — completely independent of the browser.
+  startHazardAlertService(User);
 })
 .catch((err) => console.log('MongoDB Connection Error:', err));
 
@@ -57,6 +65,15 @@ const User = mongoose.model('User', userSchema);
 // In-Memory OTP Store for Password Reset
 const otpStore = new Map();
 
+// Nodemailer Transporter Configuration for Real Email Delivery
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 // Direct Assets Fallback Route
 app.get('/api/assets', async (req, res) => {
   try {
@@ -71,7 +88,7 @@ app.get('/api/assets', async (req, res) => {
   }
 });
 
-// 1. Register API Endpoint
+// 1. Register API Endpoint (With Strict Admin Whitelisting)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { fullName, email, phone, dob, password, address, state, city, pinCode, role } = req.body;
@@ -86,9 +103,22 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'User already exists with this email' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Whitelisted Admin Email Security Check
+    const allowedAdmins = ['amitkushwaha0804@gmail.com'];
+    let safeRole = 'Public Citizen';
 
-    const safeRole = /admin/i.test(role || '') ? 'Authority/Admin' : 'Public Citizen';
+    if (/admin/i.test(role || '')) {
+      if (allowedAdmins.includes(normalizedEmail)) {
+        safeRole = 'Authority/Admin';
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: '⚠️ Access Denied: Only authorized administrators can register as Admin.'
+        });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
       fullName,
@@ -123,10 +153,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// 2. Login API Endpoint
+// 2. Login API Endpoint (With Role Verification & Warning Support)
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, selectedRole } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
@@ -142,8 +172,18 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid password' });
     }
 
+    const userRegisteredRole = user.role || 'Public Citizen';
+
+    // Warn if a Public Citizen tries logging in under the Admin role tab
+    if (selectedRole && selectedRole === 'Admin' && userRegisteredRole !== 'Authority/Admin') {
+      return res.status(403).json({
+        success: false,
+        message: '⚠️ Warning: This account is registered as a Public Citizen. You cannot log in with administrative privileges.'
+      });
+    }
+
     const profile = {
-      role: user.role || 'Public Citizen',
+      role: userRegisteredRole,
       fullName: user.fullName || 'User',
       email: user.email,
       phone: user.phone || '',
@@ -169,28 +209,60 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 3. Send OTP Endpoint (Email or Mobile)
+// 3. Send Real OTP Endpoint (Database Verified + Nodemailer Email Dispatch)
 app.post('/api/auth/send-otp', async (req, res) => {
   try {
     const { target, type } = req.body;
     if (!target) return res.status(400).json({ success: false, message: 'Target email or mobile number is required' });
 
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(target.toLowerCase().trim(), { otp: generatedOtp, expires: Date.now() + 300000 });
+    const cleanTarget = target.toLowerCase().trim();
 
-    console.log(`[OTP ENGINE] Generated OTP for ${target}: ${generatedOtp}`);
+    const userExists = await User.findOne({
+      $or: [{ email: cleanTarget }, { phone: cleanTarget }]
+    });
+
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: 'No account found registered with these details.' });
+    }
+
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(cleanTarget, { otp: generatedOtp, expires: Date.now() + 300000 }); // Valid for 5 minutes
+
+    if (type === 'email' || cleanTarget.includes('@')) {
+      const mailOptions = {
+        from: `"SHM Multi-Hazard Security" <${process.env.EMAIL_USER || 'support@shm-monitor.local'}>`,
+        to: cleanTarget,
+        subject: 'Password Reset OTP - SHM Monitor',
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 24px; background: #0f172a; color: #fff; border-radius: 12px; border: 1px solid #1e293b;">
+            <h2 style="color: #22d3ee; margin-top: 0;">Password Reset Request</h2>
+            <p style="color: #cbd5e1;">You requested to reset your password for your SHM Monitor account.</p>
+            <p style="color: #cbd5e1;">Your secure verification OTP code is:</p>
+            <div style="background: #1e293b; color: #38bdf8; font-size: 28px; font-weight: bold; padding: 12px 24px; display: inline-block; letter-spacing: 6px; border-radius: 8px; margin: 10px 0;">
+              ${generatedOtp}
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">This OTP is valid for 5 minutes. If you did not request this, please ignore this email.</p>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[REAL EMAIL OTP SENT] Dispatched successfully to ${cleanTarget}`);
+    } else {
+      console.log(`[MOBILE SMS OTP] Simulated mobile gateway dispatch to ${cleanTarget}: ${generatedOtp}`);
+    }
 
     return res.status(200).json({
       success: true,
-      message: `OTP sent successfully to your registered ${type}!`,
-      otpDemo: generatedOtp
+      message: `OTP sent successfully to your registered ${type}!`
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Failed to send OTP', error: error.message });
+    console.error('Error dispatching real OTP:', error);
+    return res.status(500).json({ success: false, message: 'Failed to send OTP. Check SMTP server configuration.', error: error.message });
   }
 });
 
-// 4. Verify OTP & Reset Password Endpoint
+// 4. Verify OTP & Real Database Password Update Endpoint
 app.post('/api/auth/reset-password-otp', async (req, res) => {
   try {
     const { target, otp, newPassword } = req.body;
@@ -198,7 +270,7 @@ app.post('/api/auth/reset-password-otp', async (req, res) => {
 
     const storedData = otpStore.get(key);
     if (!storedData) {
-      return res.status(400).json({ success: false, message: 'No active OTP request found or code expired' });
+      return res.status(400).json({ success: false, message: 'No active OTP request found or code expired.' });
     }
 
     if (Date.now() > storedData.expires) {
@@ -207,22 +279,25 @@ app.post('/api/auth/reset-password-otp', async (req, res) => {
     }
 
     if (storedData.otp !== otp.trim()) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code' });
+      return res.status(400).json({ success: false, message: 'Invalid OTP code entered.' });
     }
 
     const user = await User.findOne({
       $or: [{ email: key }, { phone: key }]
     });
 
-    if (user) {
-      user.password = await bcrypt.hash(newPassword, 10);
-      await user.save();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User account not found.' });
     }
 
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
     otpStore.delete(key);
-    return res.status(200).json({ success: true, message: 'Password reset successfully! You can now login.' });
+    return res.status(200).json({ success: true, message: 'Password reset successfully in database! You can now sign in.' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Error resetting password', error: error.message });
+    console.error('Error resetting password in database:', error);
+    return res.status(500).json({ success: false, message: 'Error updating password in database', error: error.message });
   }
 });
 
@@ -283,6 +358,9 @@ app.post('/api/auth/google', async (req, res) => {
     let user = await User.findOne({ email: profile.email });
     let created = false;
     if (!user) {
+      const allowedAdmins = ['amitkushwaha0804@gmail.com'];
+      const assignedRole = allowedAdmins.includes(profile.email) ? 'Authority/Admin' : 'Public Citizen';
+
       user = new User({
         fullName: profile.fullName,
         email: profile.email,
@@ -290,10 +368,10 @@ app.post('/api/auth/google', async (req, res) => {
         dob: 'N/A',
         password: await bcrypt.hash(`google-oauth-${Date.now()}`, 10),
         address: 'N/A',
-        state: 'Gorakhpur, Uttar Pradesh',
-        city: 'Gorakhpur',
+        state: 'Uttar Pradesh',
+        city: 'Lucknow',
         pinCode: 'N/A',
-        role: 'Public Citizen'
+        role: assignedRole
       });
       await user.save();
       created = true;
@@ -388,7 +466,7 @@ app.get('/api/hazards/flood-analysis', async (req, res) => {
   }
 });
 
-// 7. Cyclone / Wind Telemetry API Endpoint (Fixed ECONNRESET with Graceful Fallback)
+// 7. Cyclone / Wind Telemetry API Endpoint
 app.get('/api/hazards/cyclone', async (req, res) => {
   try {
     const { lat = 26.8467, lng = 80.9462 } = req.query;
@@ -514,6 +592,18 @@ const jarvisChatHandler = async (req, res) => {
 
 app.post('/api/jarvis-chat', jarvisChatHandler);
 app.post('/api/chat', jarvisChatHandler);
+
+// ==========================================
+// STATIC FRONTEND SERVING FOR SINGLE DEPLOYMENT
+// ==========================================
+
+// Serve static assets from frontend build folder
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Handle Single Page Application (SPA) Routing (Express 5 Syntax Compatible)
+app.get('{*path}', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
 
 // Start Server
 const PORT = process.env.PORT || 5000;

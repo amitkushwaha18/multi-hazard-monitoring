@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { API_BASE_URL, withRetry } from '../config';
 
 const DEFAULT_LOCATION = { lat: 26.8467, lng: 80.9462, name: 'Lucknow', region: 'Uttar Pradesh', country: 'India' };
 
@@ -124,7 +125,11 @@ const CycloneDetailModal = ({ isOpen, onClose }) => {
   const fetchTelemetry = async (lat, lng) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/hazards/cyclone?lat=${lat}&lng=${lng}`);
+      const res = await withRetry(
+        () => axios.get(`${API_BASE_URL}/api/hazards/cyclone?lat=${lat}&lng=${lng}`, { timeout: 12000 }),
+        3,
+        2500
+      );
       setCycloneData({
         currentWindSpeed: res.data?.currentWindSpeed ?? 0,
         currentWindGusts: res.data?.currentWindGusts ?? 0,
@@ -204,6 +209,7 @@ const CycloneDetailModal = ({ isOpen, onClose }) => {
 
   return createPortal(
     <div
+      className="cdm-root"
       style={{
         position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at top, #071021 0%, #020408 70%)',
         zIndex: 9999, display: 'flex', flexDirection: 'column', color: THEME.text, fontFamily: THEME.sans,
@@ -213,12 +219,21 @@ const CycloneDetailModal = ({ isOpen, onClose }) => {
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
+        .cdm-scroll { overflow-x: hidden; }
         .cdm-scroll::-webkit-scrollbar { width: 8px; }
         .cdm-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 8px; }
         .cdm-card { transition: transform 0.22s ease, box-shadow 0.22s ease; }
         .cdm-card:hover { transform: translateY(-3px); box-shadow: 0 30px 54px -24px rgba(0,0,0,0.85); }
         .cdm-close { transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
         .cdm-close:hover { color: #e9eff6; border-color: #8b97a8; transform: translateY(-1px); }
+        @media (max-width: 768px) {
+          .cdm-root > div:first-of-type { padding: 12px 16px !important; }
+          .cdm-root h1 { font-size: 16px !important; }
+          .cdm-scroll { padding: 18px 14px 32px !important; }
+          .cdm-scroll > div:first-of-type { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .cdm-scroll > div:first-of-type > div:first-child { position: static !important; }
+          .cdm-card { padding: 16px !important; }
+        }
       `}</style>
 
       {/* Header */}

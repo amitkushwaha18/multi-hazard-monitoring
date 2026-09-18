@@ -4,13 +4,13 @@ import LoginRegister from './components/LoginRegister';
 import Register from './components/Register';
 import MapDashboard from './components/MapDashboard';
 import AdminOverview from './components/AdminOverview';
+import AIChatbotCopilot from './components/AIChatbotCopilot';
 
 const isAdminRole = (role) => /admin/i.test(role || '');
 
 function App() {
-  // --- Auth gate ---------------------------------------------------------
   const [authView, setAuthView] = useState('landing'); // 'landing' | 'login' | 'register'
-  const [currentUser, setCurrentUser] = useState(null); // full profile { role, fullName, email, city, state, ... }
+  const [currentUser, setCurrentUser] = useState(null); // profile object
 
   const handleLoginSuccess = (profile) => {
     const p = profile || {};
@@ -28,18 +28,28 @@ function App() {
   };
 
   const handleRegisterSuccess = () => {
-    // Register.jsx already shows the "Registration successful!" alert itself.
     setAuthView('login');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    setAuthView('login');
+    setAuthView('landing');
   };
 
-  // Not signed in yet -> Landing Page first (default entry point).
-  // Sign In / Create Account open ONLY from the Landing Page buttons.
-  if (!currentUser) {
+  // ==========================================
+  // STRICT AUTH GUARD: 
+  // If user is logged in, ONLY render the respective dashboard. 
+  // No login/register screen can ever overlap.
+  // ==========================================
+  const renderView = () => {
+    if (currentUser) {
+      if (isAdminRole(currentUser.role)) {
+        return <AdminOverview user={currentUser} onLogout={handleLogout} />;
+      }
+      return <MapDashboard user={currentUser} onLogout={handleLogout} />;
+    }
+
+    // Not logged in -> Render Landing Page or Auth screens
     if (authView === 'landing') {
       return (
         <LandingPage
@@ -49,6 +59,7 @@ function App() {
         />
       );
     }
+
     if (authView === 'register') {
       return (
         <Register
@@ -58,22 +69,22 @@ function App() {
         />
       );
     }
+
     return (
       <LoginRegister
         onLoginSuccess={handleLoginSuccess}
         onSwitchToRegister={() => setAuthView('register')}
+        onBackToLanding={() => setAuthView('landing')}
       />
     );
-  }
+  };
 
-  // Role-based dashboard routing.
-  // MapDashboard is EXCLUSIVELY for Public Citizens.
-  // Administrators always land on the Admin Overview dashboard instead.
-  if (isAdminRole(currentUser.role)) {
-    return <AdminOverview user={currentUser} onLogout={handleLogout} />;
-  }
-
-  return <MapDashboard user={currentUser} onLogout={handleLogout} />;
+  return (
+    <>
+      {renderView()}
+      <AIChatbotCopilot />
+    </>
+  );
 }
 
 export default App;

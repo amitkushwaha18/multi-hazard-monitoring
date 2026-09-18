@@ -39,3 +39,11 @@
 .blinking-hazard-orange {
   animation: pulse-orange 1.6s infinite ease-in-out;
 }
+
+/* Base App Page Overflow Fix */
+.app-container {
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}

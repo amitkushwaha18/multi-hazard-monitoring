@@ -65,12 +65,15 @@ const TimeSeriesChart = ({ locationName, telemetry }) => {
       borderRadius: '16px',
       padding: '20px',
       color: '#fff',
-      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div className="mh-flex-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#f8fafc' }}>
-            LSTM Neural Network Time-Series Forecaster
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '700', background: 'linear-gradient(90deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            🧠 LSTM Predictive Time-Series Forecaster
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#38bdf8' }}>
             {locationName ? `Active Location: ${locationName}` : 'Select a location to update telemetry graph'}

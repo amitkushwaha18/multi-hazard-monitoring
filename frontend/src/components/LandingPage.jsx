@@ -244,7 +244,7 @@ const LandingPage = ({ onNavigate }) => {
       const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
     } else {
-      onNavigate('dashboard');
+      onNavigate('login');
     }
   };
 
@@ -420,9 +420,9 @@ const LandingPage = ({ onNavigate }) => {
       <div className="real-stone stone-lg-3"></div>
       <div className="real-stone stone-lg-4"></div>
 
-      {/* ---------------- NAVBAR (locked to viewport top, rendered via portal so the parent's 3D perspective can't unstick it) ---------------- */}
+      {/* ---------------- NAVBAR ---------------- */}
       {createPortal(
-        <nav ref={navRef} style={{
+        <nav ref={navRef} className="lp-nav" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -438,10 +438,10 @@ const LandingPage = ({ onNavigate }) => {
           backdropFilter: 'blur(18px)',
           boxShadow: '0 4px 30px rgba(0,0,0,0.95)'
         }}>
-          <div onClick={() => scrollToSection('home')} style={{ fontSize: '18px', fontWeight: 'bold', color: COLORS.sky, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', textShadow: '0 0 15px rgba(56,189,248,0.6)' }}>
+          <div className="lp-nav-brand" onClick={() => scrollToSection('home')} style={{ fontSize: '18px', fontWeight: 'bold', color: COLORS.sky, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', textShadow: '0 0 15px rgba(56,189,248,0.6)' }}>
             🛡️ MultiHazard AI
           </div>
-          <div style={{ display: 'flex', gap: '28px', fontSize: '14px', color: COLORS.textMuted, fontWeight: 500, flexWrap: 'wrap' }}>
+          <div className="lp-nav-links" style={{ display: 'flex', gap: '28px', fontSize: '14px', color: COLORS.textMuted, fontWeight: 500, flexWrap: 'wrap' }}>
             {NAV_ITEMS.map((item) => (
               <span 
                 key={item.name} 
@@ -452,7 +452,7 @@ const LandingPage = ({ onNavigate }) => {
               </span>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="lp-nav-buttons" style={{ display: 'flex', gap: '12px' }}>
             <button
               onClick={() => onNavigate('login')}
               className="btn-3d"
@@ -490,11 +490,11 @@ const LandingPage = ({ onNavigate }) => {
         document.body
       )}
 
-      {/* Spacer so hero content sits exactly where it did before, now that the nav is fixed/out of flow */}
+      {/* Spacer */}
       <div style={{ height: `${navHeight}px` }} />
 
       {/* ---------------- HERO ---------------- */}
-      <header id="home" className="scroll-fly-element fly-visible" style={{
+      <header id="home" className="scroll-fly-element fly-visible lp-hero" style={{
         display: 'grid',
         gridTemplateColumns: '1.1fr 0.9fr',
         gap: '48px',
@@ -531,7 +531,7 @@ const LandingPage = ({ onNavigate }) => {
           </p>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <button
-              onClick={() => onNavigate('dashboard')}
+              onClick={() => onNavigate('login')}
               className="btn-3d"
               style={{
                 background: COLORS.skyDeep,
@@ -565,7 +565,7 @@ const LandingPage = ({ onNavigate }) => {
           </div>
         </div>
 
-        <div style={{
+        <div className="lp-hero-card" style={{
           position: 'relative',
           background: 'linear-gradient(145deg, rgba(3, 5, 12, 0.98) 0%, rgba(0, 0, 0, 1) 100%)',
           border: '1px solid #38bdf844',
@@ -580,8 +580,8 @@ const LandingPage = ({ onNavigate }) => {
           transformStyle: 'preserve-3d',
           backdropFilter: 'blur(12px)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: COLORS.sky, letterSpacing: '1px', fontWeight: 'bold' }}>
-            <span>  SEISMIC DETECTOR</span>
+          <div className="mh-flex-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: COLORS.sky, letterSpacing: '1px', fontWeight: 'bold' }}>
+            <span>SEISMIC DETECTOR</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 10px', borderRadius: '12px', border: '1px solid #059669' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: COLORS.safe, animation: 'liveBlink 1s infinite' }}></span>
               LIVE SENSORS ACTIVE
@@ -637,7 +637,7 @@ const LandingPage = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div style={{
+          <div className="mh-flex-row" style={{
             background: 'rgba(0, 0, 0, 0.98)',
             border: `1px solid ${COLORS.dangerBorder}`,
             borderRadius: '12px',
@@ -683,7 +683,7 @@ const LandingPage = ({ onNavigate }) => {
       </section>
 
       {/* ---------------- ABOUT SECTION ---------------- */}
-      <section id="about" className="scroll-fly-element" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      <section id="about" className="scroll-fly-element lp-section" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div className="card-3d" style={{
           background: 'rgba(3, 6, 14, 0.95)',
           border: `1px solid ${COLORS.border}`,
@@ -729,8 +729,8 @@ const LandingPage = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* ---------------- LIVE HAZARD PILLARS (CLICKABLE FLOOD, EARTHQUAKE & CYCLONE CARDS) ---------------- */}
-      <section id="hazards-section" className="scroll-fly-element" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      {/* ---------------- LIVE HAZARD PILLARS ---------------- */}
+      <section id="hazards-section" className="scroll-fly-element lp-section" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div style={{ maxWidth: '1180px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>
@@ -743,7 +743,7 @@ const LandingPage = ({ onNavigate }) => {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '30px' }}>
             
-            {/* FLOOD RISK (CLICKABLE) */}
+            {/* FLOOD RISK */}
             <div 
               className="card-3d" 
               onClick={() => setIsFloodModalOpen(true)}
@@ -767,7 +767,7 @@ const LandingPage = ({ onNavigate }) => {
               </ul>
             </div>
 
-            {/* EARTHQUAKE RISK (CLICKABLE - REPLACED THERMAL) */}
+            {/* EARTHQUAKE RISK */}
             <div 
               className="card-3d" 
               onClick={() => setIsEarthquakeModalOpen(true)}
@@ -791,7 +791,7 @@ const LandingPage = ({ onNavigate }) => {
               </ul>
             </div>
 
-            {/* CYCLONE RISK (CLICKABLE) */}
+            {/* CYCLONE RISK */}
             <div 
               className="card-3d" 
               onClick={() => setIsCycloneModalOpen(true)}
@@ -819,25 +819,49 @@ const LandingPage = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* ---------------- FEATURES SECTION ---------------- */}
-      <section id="features-section" className="scroll-fly-element" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      {/* ---------------- FEATURES SECTION (UPDATED WITH CNN, LSTM & GA DETAILS) ---------------- */}
+      <section id="features-section" className="scroll-fly-element lp-section" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div style={{ textAlign: 'center', marginBottom: '50px' }}>
           <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>
             Comprehensive System Features
           </h2>
           <p style={{ color: COLORS.textMuted, fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>
-            Engineered with cutting-edge 3D UI principles, real-time telemetry pipelines, and predictive AI models.
+            Engineered with cutting-edge 3D UI principles, real-time telemetry pipelines, and hybrid AI models (CNN, LSTM & GA).
           </p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
           {[
-            { title: '🌪️ Multi-Hazard Risk Analyzer', desc: 'Search any city worldwide. Instantly computes Flood risk, Seismic earthquake anomalies, and Cyclone high-wind warnings using live meteorology.', color: COLORS.sky },
-            { title: '⚡ Live USGS Seismic Stream', desc: 'Direct global earthquake stream integration featuring slow-red blinking beacon markers and real-time magnitude sorting.', color: COLORS.danger },
-            { title: '🏗️ Infrastructure Structural Health', desc: 'Continuous telemetry monitoring for critical assets including Dams, Bridges, and Buildings, tracking vibration, tilt, and crack width.', color: COLORS.safe },
-            { title: '📈 LSTM Neural Forecaster', desc: 'Advanced time-series forecasting charts project temperature and rainfall trends 12 hours ahead, flagging emerging hazards proactively.', color: COLORS.warning },
-            { title: '🗺️ 3D Satellite Command Map', desc: 'Powered by Leaflet and Google Satellite terrain tiles. Dynamically generates GIS risk buffer circles and centers smoothly onto searched locations.', color: COLORS.sky },
-            { title: '🚨 Automated Early Warnings', desc: 'Threshold breaches trigger instant popup modal alerts with automated dispatcher logs simulating SMS & Email alerts to response teams.', color: COLORS.danger }
+            { 
+              title: '🖼️ CNN (Convolutional Neural Network) - Spatial Analysis', 
+              desc: 'Processes high-resolution satellite imagery, radar scans, and drone feeds to detect structural damage, inundation zones, and surface cracks in real time.', 
+              color: COLORS.sky 
+            },
+            { 
+              title: '📈 LSTM (Long Short-Term Memory) - Temporal Forecasting', 
+              desc: 'Analyzes sequential time-series weather and seismic data to project temperature, rainfall, and wind speed trends 24 hours ahead with high accuracy.', 
+              color: COLORS.warning 
+            },
+            { 
+              title: '🧬 GA (Genetic Algorithm) - Route Optimization', 
+              desc: 'Uses evolutionary algorithms to fine-tune neural network weights and dynamically calculate optimal, hazard-free evacuation routes for emergency response.', 
+              color: COLORS.safe 
+            },
+            { 
+              title: '🌪️ Multi-Hazard Risk Analyzer', 
+              desc: 'Search any city worldwide. Instantly computes Flood risk, Seismic earthquake anomalies, and Cyclone high-wind warnings using live meteorology.', 
+              color: COLORS.sky 
+            },
+            { 
+              title: '⚡ Live USGS Seismic Stream', 
+              desc: 'Direct global earthquake stream integration featuring slow-red blinking beacon markers and real-time magnitude sorting.', 
+              color: COLORS.danger 
+            },
+            { 
+              title: '🚨 Automated Early Warnings', 
+              desc: 'Threshold breaches trigger instant popup modal alerts with automated dispatcher logs executing Postmark Email alerts to response teams.', 
+              color: COLORS.danger 
+            }
           ].map((f, i) => (
             <div key={i} className="card-3d" style={{
               background: 'rgba(3, 6, 14, 0.95)',
@@ -853,8 +877,8 @@ const LandingPage = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* ---------------- ARCHITECTURE SECTION (NEWLY DETAILED) ---------------- */}
-      <section id="architecture-section" className="scroll-fly-element" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      {/* ---------------- ARCHITECTURE SECTION ---------------- */}
+      <section id="architecture-section" className="scroll-fly-element lp-section" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div style={{ maxWidth: '1180px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>
@@ -877,15 +901,15 @@ const LandingPage = ({ onNavigate }) => {
 
             <div className="card-3d" style={{ background: 'rgba(1, 3, 8, 0.98)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '20px', padding: '30px' }}>
               <div style={{ fontSize: '32px', marginBottom: '12px' }}>🧠</div>
-              <h3 style={{ color: COLORS.warning, fontSize: '20px', marginBottom: '10px' }}>2. AI / LSTM Neural Forecaster</h3>
+              <h3 style={{ color: COLORS.warning, fontSize: '20px', marginBottom: '10px' }}>2. AI / Hybrid Neural Engine</h3>
               <p style={{ color: COLORS.textMuted, fontSize: '14px', lineHeight: 1.6 }}>
-                Processes sequential time-series weather metrics to project 12-hour rainfall, temperature, and cyclonic wind shear anomalies.
+                Combines CNN spatial extraction, LSTM time-series forecasting, and GA optimization to project weather anomalies and evacuation routes.
               </p>
             </div>
 
             <div className="card-3d" style={{ background: 'rgba(1, 3, 8, 0.98)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '20px', padding: '30px' }}>
               <div style={{ fontSize: '32px', marginBottom: '12px' }}>🌐</div>
-              <h3 style={{ color: COLORS.danger, fontSize: '20px', marginBottom: '10px' }}>3. 3D GIS & Command Map Engine</h3>
+              <h3 style={{ color: COLORS.danger, fontSize: '20px', marginBottom: '10px' }}>3. GIS & Command Map Engine</h3>
               <p style={{ color: COLORS.textMuted, fontSize: '14px', lineHeight: 1.6 }}>
                 Renders Leaflet high-resolution satellite tiles with dynamic radial risk buffers, fault overlays, and structural health telemetry markers.
               </p>
@@ -895,8 +919,8 @@ const LandingPage = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* ---------------- EMERGENCY SECTION (NEWLY DETAILED) ---------------- */}
-      <section id="emergency-section" className="scroll-fly-element" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      {/* ---------------- EMERGENCY SECTION ---------------- */}
+      <section id="emergency-section" className="scroll-fly-element lp-section" style={{ maxWidth: '1180px', margin: '0 auto', padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div className="card-3d" style={{
           background: 'rgba(3, 6, 14, 0.95)',
           border: `1px solid ${COLORS.dangerBorder}`,
@@ -927,7 +951,7 @@ const LandingPage = ({ onNavigate }) => {
               <h4 style={{ color: COLORS.sky, margin: '0 0 10px 0', fontSize: '18px' }}>🏃 Safe Evacuation Routes</h4>
               <p style={{ color: COLORS.textMuted, fontSize: '14px', lineHeight: 1.6, margin: '0 0 12px 0' }}>Real-time GPS routing to high-ground shelters away from coastal & riverine red zones.</p>
               <button 
-                onClick={() => onNavigate('dashboard')} 
+                onClick={() => onNavigate('login')} 
                 style={{ background: COLORS.skyDeep, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
               >
                 View Shelter Map ↗
@@ -936,7 +960,7 @@ const LandingPage = ({ onNavigate }) => {
 
             <div style={{ background: 'rgba(1, 3, 8, 0.9)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
               <h4 style={{ color: COLORS.warning, margin: '0 0 10px 0', fontSize: '18px' }}>⚡ Automated SOS Dispatcher</h4>
-              <p style={{ color: COLORS.textMuted, fontSize: '14px', lineHeight: 1.6, margin: '0 0 12px 0' }}>Broadcasts real-time SMS & Email alerts to nearby emergency response units upon threshold breach.</p>
+              <p style={{ color: COLORS.textMuted, fontSize: '14px', lineHeight: 1.6, margin: '0 0 12px 0' }}>Broadcasts real-time Email alerts to nearby emergency response units upon threshold breach.</p>
               <div style={{ color: COLORS.safe, fontWeight: 'bold', fontSize: '13px' }}>● Dispatch System Active</div>
             </div>
 
@@ -945,7 +969,7 @@ const LandingPage = ({ onNavigate }) => {
       </section>
 
       {/* ---------------- TEAM SECTION ---------------- */}
-      <section id="team-section" className="scroll-fly-element" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
+      <section id="team-section" className="scroll-fly-element lp-section" style={{ background: 'rgba(2, 4, 10, 0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.border}`, padding: '100px 40px', position: 'relative', zIndex: 2 }}>
         <div style={{ maxWidth: '1180px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>

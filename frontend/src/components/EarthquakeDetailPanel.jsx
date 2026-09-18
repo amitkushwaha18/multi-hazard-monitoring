@@ -14,7 +14,7 @@ const EarthquakeDetailPanel = ({ seismicEvents = [] }) => {
       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
       marginTop: '20px'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      <div className="mh-flex-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#ef4444' }}>
           Live Active Earthquake Feed (USGS Real-time)
         </h2>
@@ -32,7 +32,7 @@ const EarthquakeDetailPanel = ({ seismicEvents = [] }) => {
             const depth = event.geometry.coordinates[2];
 
             return (
-              <div key={event.id} style={{
+              <div key={event.id} className="mh-flex-row" style={{
                 background: '#020617',
                 borderLeft: `4px solid ${mag >= 5 ? '#ef4444' : mag >= 3 ? '#f59e0b' : '#10b981'}`,
                 padding: '12px',

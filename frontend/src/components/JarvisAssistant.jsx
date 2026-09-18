@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 // Ported from the standalone /Jarvis implementation (core/prompt.txt + main.py):
 // the JARVIS system instruction is sent to the backend so the Gemini call
@@ -249,8 +250,8 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
     const history = historyRef.current.slice(-8);
     const systemPrompt = JARVIS_SYSTEM_PROMPT(lang);
     const endpoints = [
-      'http://localhost:5000/api/jarvis-chat',
-      'http://localhost:5000/api/chat'
+      `${API_BASE_URL}/api/jarvis-chat`,
+      `${API_BASE_URL}/api/chat`
     ];
     for (const url of endpoints) {
       try {
@@ -389,7 +390,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, fontFamily: 'sans-serif' }}>
+    <div className="jarvis-root" style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, fontFamily: 'sans-serif' }}>
       <style>{`
         @keyframes jarvisGlow {
           0% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.6); }
@@ -418,7 +419,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
       )}
 
       {isOpen && (
-        <div style={{
+        <div className="jarvis-window" style={{
           width: '390px', height: '540px', background: 'rgba(3, 7, 18, 0.96)',
           border: '1px solid #f472b688', borderRadius: '20px', display: 'flex', flexDirection: 'column',
           boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(244, 114, 182, 0.25)',

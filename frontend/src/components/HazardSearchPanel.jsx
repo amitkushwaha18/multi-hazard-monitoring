@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:5000';
+import { API_BASE_URL } from '../config';
 
 const HazardSearchPanel = ({ onLocationSelect, externalRequest }) => {
   const [query, setQuery] = useState('');
@@ -183,7 +182,7 @@ const HazardSearchPanel = ({ onLocationSelect, externalRequest }) => {
         Multi-Hazard Risk Analyzer (Flood, Earthquake & Cyclone)
       </h2>
 
-      <div style={{ display: 'flex', gap: '12px', position: 'relative' }}>
+      <div className="hs-search-row" style={{ display: 'flex', gap: '12px', position: 'relative' }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <input
             type="text"

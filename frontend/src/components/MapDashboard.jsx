@@ -3,16 +3,20 @@ import { MapContainer, TileLayer, Marker, Popup, LayersControl, Circle, useMap }
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
+import { API_BASE_URL, withRetry } from '../config';
 
 // Import sub-components
 import HazardSearchPanel from './HazardSearchPanel';
 import EarthquakeDetailPanel from './EarthquakeDetailPanel';
 import TimeSeriesChart from './TimeSeriesChart';
+import CNNAerialAnalysisPanel from './CNNAerialAnalysisPanel';
+import GAEvacuationRouter from './GAEvacuationRouter';
 import AssetHealthPanel from './AssetHealthPanel';
 import JarvisAssistant from './JarvisAssistant';
 import FloodDetailModal from './FloodDetailModal';
 import EarthquakeDetailModal from './EarthquakeDetailModal';
 import CycloneDetailModal from './CycloneDetailModal';
+import AlertModal from './AlertModal';
 
 const { BaseLayer } = LayersControl;
 
@@ -62,6 +66,8 @@ const MapDashboard = ({ user, onLogout }) => {
   const [activeModal, setActiveModal] = useState(null);
   const [voiceResult, setVoiceResult] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [backendOnline, setBackendOnline] = useState(null);
   const selectedLocationRef = useRef(null);
   const pendingVoiceSeqRef = useRef(null);
 
@@ -96,35 +102,38 @@ const MapDashboard = ({ user, onLogout }) => {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (isFirstLoad) => {
       try {
-        const [seismicRes, assetRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/hazards/seismic', { timeout: 5000 }).catch(() => null),
-          axios.get('http://localhost:5000/api/assets', { timeout: 5000 }).catch(() => null)
-        ]);
+        // withRetry survives Render free-tier cold starts, so indicators no
+        // longer flash to 0 while the backend wakes up.
+        const [seismicRes, assetRes] = await withRetry(
+          () => Promise.all([
+            axios.get(`${API_BASE_URL}/api/hazards/seismic`, { timeout: 12000 }).catch(() => null),
+            axios.get(`${API_BASE_URL}/api/assets`, { timeout: 12000 }).catch(() => null)
+          ]),
+          isFirstLoad ? 3 : 0,
+          2500
+        );
 
         if (!seismicRes && !assetRes) {
           throw new Error('Backend unreachable');
         }
 
-        let events = [];
-        if (seismicRes?.data?.features) {
-          events = seismicRes.data.features;
-        }
+        setBackendOnline(true);
 
-        setSeismicEvents(events);
+        if (seismicRes?.data?.features) {
+          setSeismicEvents(seismicRes.data.features);
+        }
         if (assetRes?.data && assetRes.data.length > 0) {
           setAssets(assetRes.data);
-        } else {
-          setAssets([]);
         }
 
         const loc = selectedLocationRef.current;
         if (loc?.lat && loc?.lng) {
           try {
             const floodRes = await axios.get(
-              `http://localhost:5000/api/hazards/flood-analysis?lat=${loc.lat}&lng=${loc.lng}`,
-              { timeout: 5000 }
+              `${API_BASE_URL}/api/hazards/flood-analysis?lat=${loc.lat}&lng=${loc.lng}`,
+              { timeout: 12000 }
             );
             if (floodRes?.data) {
               setSelectedLocation(prev =>
@@ -136,16 +145,17 @@ const MapDashboard = ({ user, onLogout }) => {
           }
         }
       } catch (err) {
-        console.warn('Backend offline — clearing map overlays to 0:', err.message);
-        setSeismicEvents([]);
-        setAssets([]);
-        setSelectedLocation(null);
+        // Keep any previously loaded values on screen instead of zeroing them.
+        console.warn('Live backend unavailable (cold start?):', err.message);
+        setBackendOnline(false);
+      } finally {
+        setDashboardLoading(false);
       }
     };
 
-    fetchData();
+    fetchData(true);
 
-    const intervalId = setInterval(fetchData, 20000);
+    const intervalId = setInterval(() => fetchData(false), 20000);
 
     return () => clearInterval(intervalId);
   }, []);
@@ -166,7 +176,7 @@ const MapDashboard = ({ user, onLogout }) => {
     <div style={{ minHeight: '100vh', background: '#020617', color: '#f8fafc', fontFamily: 'sans-serif', paddingBottom: '50px', position: 'relative' }}>
 
       {/* Top Navigation Bar with Profile Menu */}
-      <nav style={{
+      <nav className="db-nav" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -178,8 +188,8 @@ const MapDashboard = ({ user, onLogout }) => {
         zIndex: 1000
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8' }}>🛡️ MultiHazard AI Dashboard</span>
-          <span style={{
+          <span className="db-brand" style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8' }}>🛡️ MultiHazard AI Dashboard</span>
+          <span className="db-role-chip" style={{
             fontSize: '11px',
             background: '#0284c7',
             color: '#fff',
@@ -295,7 +305,7 @@ const MapDashboard = ({ user, onLogout }) => {
       </nav>
 
       {/* Main Container */}
-      <div style={{ padding: '32px 40px' }}>
+      <div className="db-main" style={{ padding: '32px 40px' }}>
 
         {/* PUBLIC CITIZEN VIEW ONLY */}
         <div>
@@ -306,16 +316,21 @@ const MapDashboard = ({ user, onLogout }) => {
             borderRadius: '14px',
             marginBottom: '24px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div className="db-hero-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div>
                 <h2 style={{ color: '#38bdf8', margin: '0 0 6px 0', fontSize: '20px' }}>📍 Citizen Live Safety & Risk Portal</h2>
                 <p style={{ color: '#cbd5e1', fontSize: '13px', margin: 0 }}>
                   Analyze regional flood and seismic risks, track live earthquake activity, and view safety overlays.
                 </p>
+                {backendOnline === false && (
+                  <p style={{ color: '#f59e0b', fontSize: '11.5px', margin: '8px 0 0' }}>
+                    ⏳ Live backend is waking up (Render cold start). Showing the latest available readings and retrying automatically…
+                  </p>
+                )}
               </div>
 
               {/* Live Profile Summary */}
-              <div style={{
+              <div className="db-profile-pills" style={{
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: '10px',
@@ -336,7 +351,22 @@ const MapDashboard = ({ user, onLogout }) => {
           <HazardSearchPanel onLocationSelect={handleLocationSelect} externalRequest={externalRequest} />
 
           {/* Map Container */}
-          <div style={{ height: '70vh', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid #1e293b', marginBottom: '24px' }}>
+          <div className="db-map" style={{ height: '70vh', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid #1e293b', marginBottom: '24px', position: 'relative' }}>
+            {dashboardLoading && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, zIndex: 500,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                padding: '10px 14px', background: 'rgba(2,6,23,0.85)', backdropFilter: 'blur(8px)',
+                borderBottom: '1px solid #1e293b', fontSize: '12.5px', color: '#38bdf8'
+              }}>
+                <span className="mh-spinner" style={{
+                  width: '14px', height: '14px', borderRadius: '50%',
+                  border: '2px solid #38bdf8', borderTopColor: 'transparent',
+                  display: 'inline-block', animation: 'mh-spin 0.9s linear infinite'
+                }} />
+                Connecting to live backend — waking Render service…
+              </div>
+            )}
             <MapContainer center={indiaCenter} zoom={5} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
               <MapFlyTo targetLocation={selectedLocation} />
 
@@ -397,13 +427,55 @@ const MapDashboard = ({ user, onLogout }) => {
             </MapContainer>
           </div>
 
-          {/* Live Chart Connected to Searched Location */}
-          <TimeSeriesChart
-            locationName={selectedLocation?.cityName}
-            baseTemp={selectedLocation?.risk?.temperatureC}
-            baseRain={selectedLocation?.risk?.precipitationMm}
-            telemetry={selectedLocation?.telemetry}
-          />
+          {/* ⚡ Triple-Engine Hybrid AI Suite (CNN + LSTM + GA) */}
+          <div style={{
+            marginTop: '24px',
+            marginBottom: '24px',
+            background: 'linear-gradient(135deg, rgba(2,132,199,0.12), rgba(168,85,247,0.12))',
+            border: '1px solid rgba(56,189,248,0.25)',
+            borderRadius: '16px',
+            padding: '18px 24px',
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(700px 120px at 50% 0%, rgba(56,189,248,0.15), transparent 70%)', pointerEvents: 'none' }} />
+            <h2 style={{
+              margin: 0,
+              fontSize: 'clamp(20px, 3vw, 30px)',
+              fontWeight: '800',
+              letterSpacing: '0.02em',
+              background: 'linear-gradient(90deg, #38bdf8, #a855f7)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textShadow: '0 0 30px rgba(56,189,248,0.25)'
+            }}>
+              ⚡ TRIPLE-ENGINE HYBRID AI SUITE (CNN + LSTM + GA)
+            </h2>
+            <p style={{ margin: '6px 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+              {selectedLocation
+                ? `🛩️ Live hybrid inference active for ${selectedLocation.cityName} — computer vision, telemetry forecasting & genetic routing fused in real time.`
+                : '🔍 Select a location to fuse satellite vision, time-series prediction and evacuation routing.'}
+            </p>
+          </div>
+
+          {/* Hybrid AI Panel Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '18px', marginBottom: '24px', alignItems: 'stretch' }}>
+            <CNNAerialAnalysisPanel
+              locationName={selectedLocation?.cityName}
+              risk={selectedLocation?.risk}
+            />
+            <TimeSeriesChart
+              locationName={selectedLocation?.cityName}
+              baseTemp={selectedLocation?.risk?.temperatureC}
+              baseRain={selectedLocation?.risk?.precipitationMm}
+              telemetry={selectedLocation?.telemetry}
+            />
+            <GAEvacuationRouter
+              locationName={selectedLocation?.cityName}
+              risk={selectedLocation?.risk}
+            />
+          </div>
 
           {/* Full Width Earthquake Feed & Asset Health Panels */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px', marginBottom: '24px' }}>
@@ -428,6 +500,9 @@ const MapDashboard = ({ user, onLogout }) => {
       <FloodDetailModal isOpen={activeModal === 'flood'} onClose={() => setActiveModal(null)} />
       <EarthquakeDetailModal isOpen={activeModal === 'earthquake'} onClose={() => setActiveModal(null)} />
       <CycloneDetailModal isOpen={activeModal === 'cyclone'} onClose={() => setActiveModal(null)} />
+
+      {/* Alert & Early Warning System Dispatcher */}
+      <AlertModal selectedLocation={selectedLocation} />
     </div>
   );
 };

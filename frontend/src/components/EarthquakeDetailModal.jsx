@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { API_BASE_URL, withRetry } from '../config';
 
 const DEFAULT_LOCATION = { lat: 26.8467, lng: 80.9462, name: 'Lucknow', region: 'Uttar Pradesh', country: 'India' };
 
@@ -118,7 +119,11 @@ const EarthquakeDetailModal = ({ isOpen, onClose }) => {
   const fetchTelemetry = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/hazards/seismic');
+      const res = await withRetry(
+        () => axios.get(`${API_BASE_URL}/api/hazards/seismic`, { timeout: 12000 }),
+        3,
+        2500
+      );
       const features = res.data?.features || [];
       
       let maxMag = 0;
@@ -199,10 +204,11 @@ const EarthquakeDetailModal = ({ isOpen, onClose }) => {
 
   return createPortal(
     <div
+      className="eqm-root"
       style={{
         position: 'fixed', inset: 0, background: '#020617', zIndex: 99999,
         display: 'flex', flexDirection: 'column', color: THEME.text, fontFamily: THEME.sans,
-        overflowY: 'auto', padding: '24px'
+        overflowY: 'auto', overflowX: 'hidden', padding: '24px'
       }}
     >
       <style>{`
@@ -213,6 +219,12 @@ const EarthquakeDetailModal = ({ isOpen, onClose }) => {
         .eqm-card:hover { transform: translateY(-2px); box-shadow: 0 20px 40px -20px rgba(0,0,0,0.85); }
         .eqm-close { transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
         .eqm-close:hover { color: #e9eff6; border-color: #8b97a8; background: rgba(255,255,255,0.1); }
+        @media (max-width: 768px) {
+          .eqm-root { padding: 16px 12px !important; }
+          .eqm-root h1 { font-size: 18px !important; }
+          .eqm-split { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .eqm-card { padding: 16px !important; }
+        }
       `}</style>
 
       {/* Top Bar Header */}
@@ -284,7 +296,7 @@ const EarthquakeDetailModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Main Grid: Location & Risk on Left, Chart on Right */}
-          <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
+          <div className="eqm-split" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
 
             {/* Left Column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

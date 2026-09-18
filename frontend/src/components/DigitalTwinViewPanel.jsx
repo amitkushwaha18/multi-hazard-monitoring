@@ -13,7 +13,7 @@ const DigitalTwinViewPanel = ({ selectedLocation }) => {
       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
       marginTop: '20px'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div className="mh-flex-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
           🏢 Digital Twin Live Telemetry View
         </h2>

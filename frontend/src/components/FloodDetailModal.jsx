@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { API_BASE_URL, withRetry } from '../config';
 
 const DEFAULT_LOCATION = { lat: 26.8467, lng: 80.9462, name: 'Lucknow', region: 'Uttar Pradesh', country: 'India' };
 
@@ -119,7 +120,11 @@ const FloodDetailModal = ({ isOpen, onClose }) => {
   const fetchTelemetry = async (lat, lng) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/hazards/flood-analysis?lat=${lat}&lng=${lng}`);
+      const res = await withRetry(
+        () => axios.get(`${API_BASE_URL}/api/hazards/flood-analysis?lat=${lat}&lng=${lng}`, { timeout: 12000 }),
+        3,
+        2500
+      );
       if (res.data) {
         setFloodData(res.data);
         setElevation(res.data.elevation ?? 0);
@@ -196,6 +201,7 @@ const FloodDetailModal = ({ isOpen, onClose }) => {
 
   return createPortal(
     <div
+      className="fdm-root"
       style={{
         position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at top, #071021 0%, #020408 70%)',
         zIndex: 9999, display: 'flex', flexDirection: 'column', color: THEME.text, fontFamily: THEME.sans,
@@ -206,12 +212,21 @@ const FloodDetailModal = ({ isOpen, onClose }) => {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
         @keyframes drawLine { from { stroke-dashoffset: 1400; } to { stroke-dashoffset: 0; } }
+        .fdm-scroll { overflow-x: hidden; }
         .fdm-scroll::-webkit-scrollbar { width: 8px; }
         .fdm-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 8px; }
         .fdm-card { transition: transform 0.22s ease, box-shadow 0.22s ease; }
         .fdm-card:hover { transform: translateY(-3px); box-shadow: 0 30px 54px -24px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.08); }
         .fdm-close { transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
         .fdm-close:hover { color: #e9eff6; border-color: #8b97a8; transform: translateY(-1px); }
+        @media (max-width: 768px) {
+          .fdm-root > div:first-of-type { padding: 12px 16px !important; }
+          .fdm-root h1 { font-size: 16px !important; }
+          .fdm-scroll { padding: 18px 14px 32px !important; }
+          .fdm-scroll > div:first-of-type { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .fdm-scroll > div:first-of-type > div:first-child { position: static !important; }
+          .fdm-card { padding: 16px !important; }
+        }
       `}</style>
 
       {/* Header */}
