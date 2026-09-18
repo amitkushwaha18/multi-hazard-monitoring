@@ -274,9 +274,10 @@ const MapDashboard = ({ user, onLogout }) => {
             <div className="db-profile-dropdown" style={{
               position: 'absolute',
               right: 0,
+              left: 'auto',
               top: 'calc(100% + 8px)',
-              width: '260px',
-              maxWidth: 'min(260px, calc(100vw - 24px))',
+              width: 'max-content',
+              maxWidth: '90vw',
               maxHeight: 'calc(100vh - 100px)',
               overflowY: 'auto',
               overflowX: 'hidden',
@@ -284,7 +285,7 @@ const MapDashboard = ({ user, onLogout }) => {
               border: '1px solid #334155',
               borderRadius: '14px',
               boxShadow: '0 20px 45px rgba(0,0,0,0.65)',
-              zIndex: 3000,
+              zIndex: 9999,
               wordBreak: 'break-word'
             }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e293b' }}>

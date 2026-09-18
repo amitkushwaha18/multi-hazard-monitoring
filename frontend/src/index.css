@@ -318,7 +318,15 @@ svg { max-width: 100%; }
   .db-nav .db-profile-identity { max-width: 46vw !important; }
   .db-nav .db-profile-name { max-width: 46vw !important; font-size: 12px !important; }
   .db-nav .db-profile-role { display: none !important; }
-  .db-profile-dropdown { z-index: 3000 !important; max-width: calc(100vw - 24px) !important; max-height: calc(100vh - 90px) !important; overflow-y: auto !important; }
+  .db-profile-dropdown {
+    z-index: 9999 !important;
+    right: 0 !important;
+    left: auto !important;
+    width: max-content !important;
+    max-width: 90vw !important;
+    max-height: calc(100vh - 90px) !important;
+    overflow-y: auto !important;
+  }
   .db-hero-row { align-items: flex-start !important; flex-direction: column !important; }
   .db-hero-row h2 { font-size: 17px !important; }
   .db-hero-row p { font-size: 12px !important; }
