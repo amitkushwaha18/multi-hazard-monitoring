@@ -35,12 +35,42 @@ const NAV_ITEMS = [
 ];
 
 const TEAM_MEMBERS = [
-  { name: 'Amit Kushwaha', role: 'Project Lead & Full-Stack Architect', desc: 'Overseeing system architecture, backend integration, and React routing.', photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Team Member 2', role: 'GIS & Map Integration Specialist', desc: 'Managing Leaflet 3D satellite tiles, seismic overlays, and spatial buffers.', photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Team Member 3', role: 'AI / ML & LSTM Forecaster', desc: 'Building neural network models for 12h weather and temperature trend forecasting.', photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Team Member 4', role: 'Infrastructure Telemetry Engineer', desc: 'Handling structural health indexing for bridges, dams, and public buildings.', photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Team Member 5', role: 'Backend & API Developer', desc: 'Configuring USGS live feeds, MongoDB schemas, and secure authentication.', photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Team Member 6', role: 'UI/UX & Safety Portal Designer', desc: 'Designing responsive dark-mode dashboards and citizen safety workflows.', photo: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' }
+  { 
+    name: 'Shreya Pandey', 
+    role: 'Project Lead & Team Leader', 
+    desc: 'Driving the overall project vision and strategic roadmap. Responsible for cross-functional team coordination, system workflow planning, and ensuring seamless integration between frontend user interfaces and backend AI services.', 
+    photo: '/images/shreya.jpg' 
+  },
+  { 
+    name: 'Samarth Singh', 
+    role: 'AI/ML & CNN+LSTM+GA Forecaster', 
+    desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 24-hour time-series weather forecasting, and Genetic Algorithms for dynamic emergency evacuation routing.', 
+    photo: '/images/samarth.jpg' 
+  },
+  { 
+    name: 'Amit Kushwaha', 
+    role: 'Backend & API Developer', 
+    desc: 'Architected the robust Node.js and Express RESTful API infrastructure, configured secure MongoDB schemas, and integrated automated Postmark email dispatchers for real-time disaster alerts.', 
+    photo: '/images/amit.jpg' 
+  },
+  { 
+    name: 'Deepanshi Singh', 
+    role: 'Infrastructure Telemetry Engineer', 
+    desc: 'Spearheaded the structural health telemetry pipeline, processing real-time IoT sensor data to monitor vibration, crack propagation, and stress indices across critical civil assets like bridges and dams.', 
+    photo: '/images/deepanshi.jpg' 
+  },
+  { 
+    name: 'Mrityunjai Kushwaha', 
+    role: 'GIS & Map Integration Specialist', 
+    desc: 'Designed the interactive geospatial mapping engine using Leaflet 3D satellite tiles, live USGS seismic feed overlays, and dynamic hazard buffer zones for precise spatial monitoring.', 
+    photo: '/images/mrityunjai.jpg' 
+  },
+  { 
+    name: 'Arnav Singh', 
+    role: 'UI/UX & Safety Portal Designer', 
+    desc: 'Crafted the futuristic dark-mode user interface, building responsive 3D dashboard cards, intuitive navigation flows, and interactive emergency portals tailored for both administrators and citizens.', 
+    photo: '/images/arnav.jpg' 
+  }
 ];
 
 const LandingPage = ({ onNavigate }) => {
