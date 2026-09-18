@@ -13,8 +13,14 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+const ALLOWED_ORIGINS = [
+  'https://multi-hazard-frontend.onrender.com',
+  'https://multi-hazard-backend.onrender.com',
+  'http://localhost:3000'
+];
+
 app.use(cors({
-  origin: '*',
+  origin: ALLOWED_ORIGINS,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));

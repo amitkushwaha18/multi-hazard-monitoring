@@ -4,6 +4,7 @@ import axios from 'axios';
 import FloodDetailModal from './FloodDetailModal';
 import CycloneDetailModal from './CycloneDetailModal';
 import EarthquakeDetailModal from './EarthquakeDetailModal';
+import { API_BASE_URL } from '../config';
 
 const COLORS = {
   bg: '#000000',
@@ -195,7 +196,7 @@ const LandingPage = ({ onNavigate }) => {
       let backendOnline = true;
 
       try {
-        const res = await axios.get('http://localhost:5000/api/hazards/seismic', { timeout: 5000 });
+        const res = await axios.get(`${API_BASE_URL}/api/hazards/seismic`, { timeout: 5000 });
         if (res?.data?.features) {
           setTotalToday(res.data.features.length);
         } else {

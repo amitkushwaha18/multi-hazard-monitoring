@@ -15,18 +15,9 @@ const readEnv = (key) => {
 
 const trimSlash = (url) => String(url || '').replace(/\/+$/, '');
 
-export const isDevelopment = (() => {
-  try {
-    return process.env.NODE_ENV === 'development';
-  } catch (e) {
-    return false;
-  }
-})();
-
-// Backend base URL.
+// Backend base URL (live production backend hosted on Render).
 export const API_BASE_URL = trimSlash(
-  readEnv('REACT_APP_API_URL') ||
-  (isDevelopment ? 'http://localhost:5000' : 'https://multi-hazard-monitoring.onrender.com')
+  readEnv('REACT_APP_API_BASE_URL') || 'https://multi-hazard-backend.onrender.com'
 );
 
 // Google OAuth Client ID (Explicitly set to ensure Official Google OAuth Popup loads).
