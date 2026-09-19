@@ -15,16 +15,16 @@ const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
 const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // TLS
-  family: 4,     // Force IPv4 to prevent ENETUNREACH errors
+  service: 'gmail',
   auth: {
     user: gmailAddress,
     pass: process.env.GMAIL_APP_PASS
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 5000,
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 15000, // 15 seconds
+  greetingTimeout: 10000,
   socketTimeout: 15000
 });
 
@@ -315,7 +315,7 @@ router.post('/send-password-otp', async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'OTP sent successfully' });
   } catch (error) {
-    console.error('SMTP Error:', error);
+    console.error('Mail error details:', error);
     console.error('[PASSWORD OTP] Failed to send OTP:', error);
     // Return the 500 immediately so the HTTP response does NOT time out or hang.
     return res.status(500).json({ success: false, message: error.message });

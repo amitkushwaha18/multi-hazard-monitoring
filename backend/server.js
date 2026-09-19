@@ -13,16 +13,16 @@ const app = express();
 
 // Nodemailer Transporter Configuration (Using Gmail App Password for instant delivery)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // TLS
-  family: 4,     // Force IPv4 to prevent ENETUNREACH errors
+  service: 'gmail',
   auth: {
     user: process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com', // Your Gmail Address
     pass: process.env.GMAIL_APP_PASS
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 5000,
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 15000, // 15 seconds
+  greetingTimeout: 10000,
   socketTimeout: 15000
 });
 
