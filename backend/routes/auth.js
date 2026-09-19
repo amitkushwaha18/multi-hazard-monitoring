@@ -16,13 +16,16 @@ const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  family: 4, // Force IPv4 to prevent ENETUNREACH errors
+  port: 587,
+  secure: false, // TLS
+  family: 4,     // Force IPv4 to prevent ENETUNREACH errors
   auth: {
     user: gmailAddress,
     pass: process.env.GMAIL_APP_PASS
-  }
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 5000,
+  socketTimeout: 15000
 });
 
 const sendEmailOtp = async ({ to, otp, purpose }) => {
@@ -312,8 +315,10 @@ router.post('/send-password-otp', async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'OTP sent successfully' });
   } catch (error) {
+    console.error('SMTP Error:', error);
     console.error('[PASSWORD OTP] Failed to send OTP:', error);
-    return res.status(200).json({ success: false, message: error.message });
+    // Return the 500 immediately so the HTTP response does NOT time out or hang.
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

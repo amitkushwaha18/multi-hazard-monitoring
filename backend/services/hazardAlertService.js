@@ -13,13 +13,16 @@ const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  family: 4, // Force IPv4 to prevent ENETUNREACH errors
+  port: 587,
+  secure: false, // TLS
+  family: 4,     // Force IPv4 to prevent ENETUNREACH errors
   auth: {
     user: gmailAddress,
     pass: process.env.GMAIL_APP_PASS
-  }
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 5000,
+  socketTimeout: 15000
 });
 
 // ---------------------------------------------------------------------------
