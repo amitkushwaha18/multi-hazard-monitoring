@@ -124,7 +124,7 @@ const AlertModal = ({ selectedLocation }) => {
         <div>
           <h2 style={{ margin: 0, fontSize: '18px', color: '#f59e0b' }}>Alert & Early Warning System Dispatcher</h2>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>
-            Automated Real-Time Hazard Dispatch Engine via Verified Postmark Email Gateway
+            Automated Real-Time Hazard Dispatch Engine via Gmail SMTP Gateway
           </p>
         </div>
         <button
@@ -169,7 +169,7 @@ const AlertModal = ({ selectedLocation }) => {
             </div>
           </div>
 
-          {/* Single Dedicated Postmark Email Channel */}
+          {/* Single Dedicated Gmail SMTP Email Channel */}
           <div style={{
             background: 'rgba(14, 165, 233, 0.08)',
             border: '1px solid rgba(56, 189, 248, 0.3)',
@@ -184,7 +184,7 @@ const AlertModal = ({ selectedLocation }) => {
               <span style={{ fontSize: '20px' }}>✉️</span>
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#38bdf8' }}>
-                  Postmark SMTP Automated Email Dispatcher
+                  Gmail SMTP Automated Email Dispatcher
                 </div>
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>
                   Direct Mass Email Delivery to Active Registered Citizens

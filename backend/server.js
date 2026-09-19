@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const nodemailer = require('nodemailer'); // Added Nodemailer for direct real OTP sending
 const { startHazardAlertService } = require('./services/hazardAlertService');
 const { GoogleGenAI } = require('@google/genai');
 const User = require('./models/User');
@@ -9,6 +10,18 @@ const authRoutes = require('./routes/auth');
 require('dotenv').config();
 
 const app = express();
+
+// Nodemailer Transporter Configuration (Using Gmail App Password for instant delivery)
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  family: 4, // Force IPv4 to prevent ENETUNREACH errors
+  auth: {
+    user: process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com', // Your Gmail Address
+    pass: process.env.GMAIL_APP_PASS
+  }
+});
 
 // Middleware
 app.use(express.json());
@@ -44,8 +57,6 @@ mongoose.connect(MONGO_URI)
   }
 
   // Start the automated hazard alert monitoring service (server-side background job).
-  // It fetches Earthquake/Cyclone/Flood risk levels and dispatches Postmark
-  // alert emails to every registered user — completely independent of the browser.
   startHazardAlertService(User);
 })
 .catch((err) => console.log('MongoDB Connection Error:', err));
@@ -65,11 +76,9 @@ app.get('/api/assets', async (req, res) => {
 });
 
 // Authentication Routes (Registration OTP Verification + Login + Google OAuth).
-// All authorization logic lives in routes/auth.js — direct account creation
-// without Email OTP verification is strictly disabled.
 app.use('/api/auth', authRoutes);
 
-// Admin Dashboard: All Registered Users (compatibility alias for /api/auth/users).
+// Admin Dashboard: All Registered Users
 app.get('/api/users', async (req, res) => {
   try {
     const users = await User.find({}).sort({ createdAt: -1 });

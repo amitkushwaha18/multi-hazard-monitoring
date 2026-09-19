@@ -12,13 +12,16 @@ const resetOtpStore = new Map();
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
+  family: 4, // Force IPv4 to prevent ENETUNREACH errors
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: gmailAddress,
+    pass: process.env.GMAIL_APP_PASS
   }
 });
 
@@ -46,48 +49,31 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
   `;
   const text = `Your SHM Monitor OTP is ${otp}. It is valid for 5 minutes.`;
 
-  const token = process.env.POSTMARK_SERVER_TOKEN;
-  if (token) {
-    try {
-      const res = await fetch('https://api.postmarkapp.com/email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Postmark-Server-Token': token
-        },
-        body: JSON.stringify({
-          From: process.env.POSTMARK_FROM_EMAIL || process.env.EMAIL_USER || 'noreply@shm-monitor.local',
-          To: toAddress,
-          Subject: subject,
-          HtmlBody: html,
-          TextBody: text,
-          MessageStream: 'outbound'
-        })
-      });
-      if (res.ok) return true;
-      const postmarkBody = await res.text().catch(() => '');
-      console.error(`[EMAIL OTP] Postmark returned HTTP ${res.status}. Falling back to SMTP.`, postmarkBody ? postmarkBody : '');
-    } catch (postmarkErr) {
-      console.error('[EMAIL OTP] Postmark dispatch failed, falling back to Nodemailer (SMTP):', postmarkErr);
-    }
-  }
-
   const mailOptions = {
-    from: `"SHM Multi-Hazard Security" <${process.env.EMAIL_USER || 'support@shm-monitor.local'}>`,
+    from: `"SHM Multi-Hazard Security" <${gmailAddress}>`,
     to: toAddress,
     subject,
-    html
+    html,
+    text
   };
   try {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (err) {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error('[EMAIL OTP] OTP delivery FAILED: SMTP credentials missing (set EMAIL_USER / EMAIL_PASS or POSTMARK_SERVER_TOKEN in backend/.env).', err);
-      throw new Error('OTP delivery failed: Email service credentials are missing on the server (EMAIL_USER / EMAIL_PASS).');
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASS) {
+      console.error('[EMAIL OTP] OTP delivery FAILED: Gmail SMTP credentials missing (set GMAIL_USER / GMAIL_APP_PASS in backend/.env).', err);
+      throw new Error('OTP delivery failed: Email service credentials are missing on the server (GMAIL_USER / GMAIL_APP_PASS).');
     }
-    console.error('[EMAIL OTP] Failed to send email via SMTP:', err);
+    const smtpCode = String(err?.code || '');
+    if (smtpCode === 'EAUTH') {
+      console.error('[EMAIL OTP] Gmail SMTP AUTH failed — verify GMAIL_USER and GMAIL_APP_PASS (App Password) in backend/.env. Server response:', err.response || err.message);
+      throw new Error('OTP delivery failed: Gmail SMTP authentication rejected (invalid GMAIL_USER / GMAIL_APP_PASS combination).');
+    }
+    if (['ECONNECTION', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'ESOCKET'].includes(smtpCode)) {
+      console.error(`[EMAIL OTP] Gmail SMTP network error (${smtpCode}) — host/connectivity issue reaching smtp.gmail.com:`, err.message);
+      throw new Error('OTP delivery failed: Could not reach the Gmail SMTP server (network error).');
+    }
+    console.error('[EMAIL OTP] Failed to send email via Gmail SMTP:', err);
     throw new Error(`Failed to send OTP email: ${err.message}`);
   }
 };
@@ -309,6 +295,7 @@ router.post('/send-password-otp', async (req, res) => {
     }
 
     const cleanTarget = rawTarget.toLowerCase().trim();
+    console.log("Forgot Password requested for:", cleanTarget);
     const userExists = await User.findOne({ email: cleanTarget });
 
     if (!userExists) {
@@ -320,7 +307,7 @@ router.post('/send-password-otp', async (req, res) => {
 
     const sent = await sendEmailOtp({ to: cleanTarget, otp: generatedOtp, purpose: 'reset' });
     if (!sent) {
-      throw new Error('Failed to send OTP email via both Postmark and SMTP.');
+      throw new Error('Failed to send OTP email via Gmail SMTP.');
     }
 
     return res.status(200).json({ success: true, message: 'OTP sent successfully' });

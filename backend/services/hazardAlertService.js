@@ -2,11 +2,25 @@
 // Hazard Alert & Early Warning Service (Server-Side Background Monitor)
 // ----------------------------------------------------------------------------
 // Continuously polls live hazard feeds (Earthquake / Cyclone / Flood),
-// evaluates HIGH RISK events and automatically dispatches Postmark alert
+// evaluates HIGH RISK events and automatically dispatches Gmail SMTP alert
 // emails to every registered user — entirely server-side, no browser needed.
 // ============================================================================
 
 require('dotenv').config();
+const nodemailer = require('nodemailer');
+
+const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  family: 4, // Force IPv4 to prevent ENETUNREACH errors
+  auth: {
+    user: gmailAddress,
+    pass: process.env.GMAIL_APP_PASS
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Configuration (all overridable via environment variables)
@@ -143,19 +157,52 @@ const scanFlood = async (loc) => {
 };
 
 // ---------------------------------------------------------------------------
-// Postmark email dispatch to all registered users
+// Gmail SMTP email dispatch (via Nodemailer) to registered users located in
+// the affected alert region.
 // ---------------------------------------------------------------------------
-const getAllRecipientEmails = async () => {
+const getAllRegisteredUsers = async () => {
   if (!UserModel) return [];
   try {
-    const users = await UserModel.find({ email: { $exists: true, $ne: '' } }, { email: 1, fullName: 1 }).lean();
-    const emails = [...new Set(users.map(u => (u.email || '').trim().toLowerCase()).filter(Boolean))];
-    console.log(`[HazardAlert] Found ${emails.length} registered recipient email(s).`);
-    return emails;
+    const users = await UserModel.find(
+      { email: { $exists: true, $ne: '' } },
+      { email: 1, fullName: 1, city: 1, state: 1, cityState: 1, address: 1 }
+    ).lean();
+    const seen = new Set();
+    const unique = [];
+    for (const u of users) {
+      const email = (u.email || '').trim().toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      unique.push({ ...u, email });
+    }
+    console.log(`[HazardAlert] Found ${unique.length} registered recipient(s) with email.`);
+    return unique;
   } catch (err) {
     console.error('[HazardAlert] Failed to fetch registered users:', err.message);
     return [];
   }
+};
+
+const getUserLocationAreas = (user) => {
+  const fields = [user.city, user.state, user.cityState, user.address];
+  return [...new Set(
+    fields
+      .filter(Boolean)
+      .map(v => String(v).trim().toLowerCase())
+      .filter(Boolean)
+  )];
+};
+
+const isLocationMatch = (user, event) => {
+  const alertArea = String(`${event.place || ''} ${event.title || ''}`).toLowerCase().trim();
+  if (!alertArea) return false;
+
+  const userAreas = getUserLocationAreas(user);
+  if (!userAreas.length) return false;
+
+  return userAreas.some(area =>
+    area.length > 1 && (alertArea.includes(area) || area.includes(alertArea))
+  );
 };
 
 const escapeHtml = (str) =>
@@ -206,7 +253,7 @@ const buildEmailContent = (event) => {
           </div>
           <div style="color:#64748b;font-size:11px;margin-top:16px;text-align:center;">
             This is an automated early-warning notification from the Multi-Hazard Monitoring System.<br/>
-            Geo-Tagged • CAP Protocol • Delivered via Postmark
+            Geo-Tagged • CAP Protocol • Delivered via Gmail SMTP
           </div>
         </div>
       </div>
@@ -216,51 +263,29 @@ const buildEmailContent = (event) => {
     `🚨 HIGH RISK ALERT: ${event.title}\n\n` +
     `Affected Area: ${event.place}\nSeverity: HIGH RISK\n\n` +
     `Immediate actions: follow local authorities, move to higher ground, ` +
-    `and stay tuned to official alerts.\n\n— SHM Multi-Hazard Monitoring System (automated via Postmark)`;
+    `and stay tuned to official alerts.\n\n— SHM Multi-Hazard Monitoring System (automated via Gmail SMTP)`;
 
   return { subject, html, text };
 };
 
-const sendPostmarkEmail = async ({ to, subject, html, text }) => {
-  const token = process.env.POSTMARK_SERVER_TOKEN;
-  const from = process.env.POSTMARK_FROM_EMAIL || process.env.EMAIL_USER || 'noreply@shm-monitor.local';
-
-  if (!token) {
-    console.warn('[HazardAlert] POSTMARK_SERVER_TOKEN missing in .env — skipping email dispatch.');
-    return false;
-  }
-
+const sendAlertEmail = async ({ to, subject, html, text }) => {
   try {
-    const res = await fetch('https://api.postmarkapp.com/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Postmark-Server-Token': token
-      },
-      body: JSON.stringify({
-        From: from,
-        To: to,
-        Subject: subject,
-        HtmlBody: html,
-        TextBody: text,
-        MessageStream: 'outbound'
-      })
+    await transporter.sendMail({
+      from: `"SHM Multi-Hazard Monitoring" <${gmailAddress}>`,
+      to,
+      subject,
+      html,
+      text
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error(`[HazardAlert] Postmark error (${res.status}) → ${to}:`, data.Message || JSON.stringify(data).slice(0, 300));
-      return false;
-    }
-    console.log(`[HazardAlert] ✔ Postmark email sent → ${to} (${data.MessageID || 'ok'})`);
+    console.log(`[HazardAlert] ✔ Alert email sent via Gmail SMTP → ${to}`);
     return true;
   } catch (err) {
-    console.error(`[HazardAlert] Postmark send failed → ${to}:`, err.message);
+    console.error(`[HazardAlert] Gmail SMTP send failed → ${to}:`, err.message);
     return false;
   }
 };
 
-// Run a function over an array with limited concurrency (Postmark rate-limit safe).
+// Run a function over an array with limited concurrency (SMTP rate-limit safe).
 const mapConcurrent = async (items, limit, fn) => {
   const results = new Array(items.length);
   let idx = 0;
@@ -279,19 +304,37 @@ const mapConcurrent = async (items, limit, fn) => {
 };
 
 const dispatchAlerts = async (events) => {
-  const recipients = await getAllRecipientEmails();
-  if (!recipients.length) {
+  const users = await getAllRegisteredUsers();
+  if (!users.length) {
     console.warn('[HazardAlert] No registered users with emails — nothing to notify.');
     return;
   }
 
   for (const event of events) {
     const { subject, html, text } = buildEmailContent(event);
+
+    // Only notify users whose registered location matches the affected area.
+    const recipients = users
+      .filter(u => isLocationMatch(u, event))
+      .map(u => u.email);
+
+    if (!recipients.length) {
+      console.log(
+        `[HazardAlert] No registered users located in the affected region ("${event.place}") — ` +
+        `skipping email dispatch for "${event.title}".`
+      );
+      sentKeys.add(event.key);
+      continue;
+    }
+
     const results = await mapConcurrent(recipients, 5, (to) =>
-      sendPostmarkEmail({ to, subject, html, text })
+      sendAlertEmail({ to, subject, html, text })
     );
     const okCount = results.filter(r => r === true).length;
-    console.log(`[HazardAlert] Dispatched "${event.title}" → ${okCount}/${recipients.length} registered users.`);
+    console.log(
+      `[HazardAlert] Dispatched "${event.title}" → ${okCount}/${recipients.length} registered users ` +
+      `located in the affected region ("${event.place}").`
+    );
 
     // Mark as sent so the same persistent event is only emailed once.
     sentKeys.add(event.key);
@@ -366,7 +409,7 @@ const runScan = async () => {
   };
 
   if (toNotify.length) {
-    console.log(`[HazardAlert] ${toNotify.length} new HIGH RISK event(s) → dispatching Postmark emails to registered users.`);
+    console.log(`[HazardAlert] ${toNotify.length} new HIGH RISK event(s) → dispatching Gmail SMTP emails to registered users.`);
     await dispatchAlerts(toNotify);
   } else {
     console.log(`[HazardAlert] Scan complete — ${detected.length} high-risk event(s) detected, none new.`);
@@ -393,7 +436,7 @@ const startHazardAlertService = (userModel) => {
   monitorInterval = setInterval(() => runScan(), MONITOR_INTERVAL_MS);
   console.log(
     `[HazardAlert] Background hazard alert service started — scanning Earthquake/Cyclone/Flood every ` +
-    `${Math.round(MONITOR_INTERVAL_MS / 1000)}s, dispatching via Postmark.`
+    `${Math.round(MONITOR_INTERVAL_MS / 1000)}s, dispatching via Gmail SMTP.`
   );
 
   // Run an initial scan shortly after boot.

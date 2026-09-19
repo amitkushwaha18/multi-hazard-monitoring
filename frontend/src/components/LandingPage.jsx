@@ -44,13 +44,13 @@ const TEAM_MEMBERS = [
   { 
     name: 'Samarth Kumar', 
     role: 'AI/ML & CNN+LSTM+GA Forecaster', 
-    desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 24-hour time-series weather forecasting, and Genetic Algorithms for dynamic emergency evacuation routing.', 
+    desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 12-hour time-series weather forecasting (trained on 24-hour historical data), and Genetic Algorithms for dynamic emergency evacuation routing.', 
     photo: '/images/samarth.jpg' 
   },
   { 
     name: 'Amit Kushwaha', 
     role: 'Backend & API Developer', 
-    desc: 'Architected the robust Node.js and Express RESTful API infrastructure, configured secure MongoDB schemas, and integrated automated Postmark email dispatchers for real-time disaster alerts.', 
+    desc: 'Architected the robust Node.js and Express RESTful API infrastructure, configured secure MongoDB schemas, and integrated automated Gmail SMTP email dispatchers for real-time disaster alerts.', 
     photo: '/images/amit.jpg' 
   },
   { 
@@ -864,18 +864,18 @@ const LandingPage = ({ onNavigate }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
           {[
             { 
-              title: '🖼️ CNN (Convolutional Neural Network) - Spatial Analysis', 
-              desc: 'Processes high-resolution satellite imagery, radar scans, and drone feeds to detect structural damage, inundation zones, and surface cracks in real time.', 
+              title: '🖼️ CNN (Convolutional Neural Network) - Feature Extraction', 
+              desc: 'Extracts important spatial/local patterns from hazard-related input data for risk analysis.', 
               color: COLORS.sky 
             },
             { 
               title: '📈 LSTM (Long Short-Term Memory) - Temporal Forecasting', 
-              desc: 'Analyzes sequential time-series weather and seismic data to project temperature, rainfall, and wind speed trends 24 hours ahead with high accuracy.', 
+              desc: 'Analyzes 24-hour historical time-series weather and seismic data to accurately predict temperature, rainfall, and wind speed trends 12 hours ahead.', 
               color: COLORS.warning 
             },
             { 
-              title: '🧬 GA (Genetic Algorithm) - Route Optimization', 
-              desc: 'Uses evolutionary algorithms to fine-tune neural network weights and dynamically calculate optimal, hazard-free evacuation routes for emergency response.', 
+              title: '🧬 GA (Genetic Algorithm) - Model Optimization', 
+              desc: 'Optimizes selected model hyperparameters to improve the performance of the hybrid prediction pipeline.', 
               color: COLORS.safe 
             },
             { 
@@ -890,7 +890,7 @@ const LandingPage = ({ onNavigate }) => {
             },
             { 
               title: '🚨 Automated Early Warnings', 
-              desc: 'Threshold breaches trigger instant popup modal alerts with automated dispatcher logs executing Postmark Email alerts to response teams.', 
+              desc: 'Threshold breaches trigger instant popup modal alerts with automated dispatcher logs executing Gmail SMTP alerts to response teams.', 
               color: COLORS.danger 
             }
           ].map((f, i) => (

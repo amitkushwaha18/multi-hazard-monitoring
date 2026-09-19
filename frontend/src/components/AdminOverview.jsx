@@ -232,7 +232,7 @@ const AdminOverview = ({ user, onLogout }) => {
         }}>
           <div>
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>
-              ⚡ Background Hazard Engine & Automated Postmark Email Dispatch
+              ⚡ Background Hazard Engine & Automated Gmail SMTP Email Dispatch
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
               Monitors Earthquake (USGS), Cyclone & Flood (Open-Meteo) and auto-emails all registered users on High Risk threshold.
@@ -435,7 +435,7 @@ const AdminOverview = ({ user, onLogout }) => {
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{ color: '#22c55e', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          ● Postmark Active
+                          ● Gmail SMTP Active
                         </span>
                       </td>
                     </tr>

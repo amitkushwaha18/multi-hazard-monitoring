@@ -11,6 +11,7 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotTarget, setForgotTarget] = useState('');
+  const [forgotSending, setForgotSending] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -81,17 +82,41 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     }
   };
 
+  const getApiBaseUrl = () => {
+    // Local dev (react-scripts proxy on :5000) must hit the local backend;
+    // otherwise fall back to the runtime-configured API_BASE_URL (Render).
+    const runtimeConfig = (typeof window !== 'undefined' && window.__MH_CONFIG__) || {};
+    const localHost =
+      typeof window !== 'undefined' &&
+      ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    if (localHost && !runtimeConfig.API_BASE_URL && !process.env.REACT_APP_API_BASE_URL) {
+      return 'http://localhost:5000';
+    }
+    return API_BASE_URL;
+  };
+
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!forgotTarget.trim()) return alert('Enter your registered email address');
+    const email = String(forgotTarget || '').trim();
+    if (!email) return alert('Enter your registered email address');
+
+    console.log('Sending OTP to:', email);
+    console.log('OTP endpoint:', `${getApiBaseUrl()}/api/auth/send-password-otp`);
+
+    if (forgotSending) return; // Prevent duplicate submissions
+    setForgotSending(true);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/send-password-otp`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/send-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: forgotTarget, type: 'email' })
+        body: JSON.stringify({ target: email, type: 'email' }),
+        signal: controller.signal
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success) {
         setOtpSent(true);
         alert(data.message);
@@ -99,8 +124,16 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
         alert(data.message || 'Failed to send OTP');
       }
     } catch (err) {
-      console.error('Send OTP error:', err);
-      alert('Network error. Please make sure the backend server is running.');
+      if (err && err.name === 'AbortError') {
+        console.error('Send OTP error: request timed out after 15s');
+        alert('OTP request timed out. Please make sure the backend server is running, then try again.');
+      } else {
+        console.error('Send OTP error:', err);
+        alert('Network error. Please make sure the backend server is running.');
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setForgotSending(false);
     }
   };
 
@@ -109,7 +142,7 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     if (!otpInput || !newPassword) return alert('Please enter OTP and New Password');
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/reset-password-otp`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/reset-password-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target: forgotTarget, otp: otpInput, newPassword })
@@ -666,9 +699,10 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
                   </button>
                   <button
                     type="submit"
-                    style={{ background: 'linear-gradient(90deg, #20c6c6, #4f8cff)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    disabled={forgotSending}
+                    style={{ background: 'linear-gradient(90deg, #20c6c6, #4f8cff)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: forgotSending ? 'not-allowed' : 'pointer', opacity: forgotSending ? 0.6 : 1 }}
                   >
-                    Send OTP →
+                    {forgotSending ? 'Sending…' : 'Send OTP →'}
                   </button>
                 </div>
               </form>
