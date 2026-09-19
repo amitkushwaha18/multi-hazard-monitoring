@@ -81,7 +81,7 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
   }
 };
 
-const ALLOWED_ADMINS = ['amitkushwaha0804@gmail.com'];
+const ALLOWED_ADMINS = ['amitkushwaha0804@gmail.com', 'sdeepanshi010@gmail.com', 'mrityunjaikush@gmail.com', 'samarthkr55@gmail.com', 'akarnav815@gmail.com', 'pandeyshreya585@gmail.com'];
 const resolveRole = (email, requestedRole) => {
   if (/admin/i.test(requestedRole || '')) {
     return ALLOWED_ADMINS.includes(email) ? 'Authority/Admin' : null;
