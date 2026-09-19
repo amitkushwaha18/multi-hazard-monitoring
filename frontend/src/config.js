@@ -5,6 +5,10 @@
 // localhost URLs anywhere in the app.
 // -----------------------------------------------------------------------------
 
+// Raises the global axios timeout so a Render free-instance cold start (which
+// can take tens of seconds on first hit after idle) does not fail requests.
+import axios from 'axios';
+
 const readEnv = (key) => {
   if (typeof window !== 'undefined') {
     const runtime = window.__MH_CONFIG__ || {};
@@ -15,10 +19,19 @@ const readEnv = (key) => {
 
 const trimSlash = (url) => String(url || '').replace(/\/+$/, '');
 
-// Backend base URL (live production backend hosted on Render).
+// Backend base URL: prefers an explicit runtime/env override, otherwise falls
+// back to the live production backend hosted on Render. No hardcoded localhost
+// is used in production builds.
 export const API_BASE_URL = trimSlash(
-  readEnv('REACT_APP_API_BASE_URL') || 'https://multi-hazard-backend.onrender.com'
+  readEnv('REACT_APP_BACKEND_URL') ||
+    readEnv('REACT_APP_API_BASE_URL') ||
+    readEnv('BACKEND_URL') ||
+    'https://multi-hazard-backend.onrender.com'
 );
+
+// Default network timeout (ms). Generous to survive Render free-instance
+// cold starts, which can take tens of seconds on first hit after idle.
+export const DEFAULT_TIMEOUT = 60000;
 
 // Google OAuth Client ID (Explicitly set to ensure Official Google OAuth Popup loads).
 export const GOOGLE_CLIENT_ID =
@@ -39,6 +52,10 @@ export const apiUrl = (path) => {
   if (/^https?:\/\//.test(p)) return p;
   return `${API_BASE_URL}${p.startsWith('/') ? p : `/${p}`}`;
 };
+
+// Raise the global axios timeout so a Render free-instance cold start (which
+// can take tens of seconds on first hit after idle) does not fail requests.
+axios.defaults.timeout = DEFAULT_TIMEOUT;
 
 // Small retry helper used to survive Render cold starts.
 export const withRetry = async (fn, retries = 3, baseBackoffMs = 2500) => {

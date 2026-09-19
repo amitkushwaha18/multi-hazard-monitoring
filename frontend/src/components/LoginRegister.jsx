@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GOOGLE_CLIENT_ID, API_BASE_URL } from '../config';
+import { GOOGLE_CLIENT_ID, API_BASE_URL, DEFAULT_TIMEOUT } from '../config';
 import { useOverlayHistory } from '../utils/historyBack';
 
 function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) {
@@ -83,13 +83,23 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
   };
 
   const getApiBaseUrl = () => {
-    // Local dev (react-scripts proxy on :5000) must hit the local backend;
-    // otherwise fall back to the runtime-configured API_BASE_URL (Render).
+    // Resolve the backend base URL dynamically:
+    // 1. Explicit per-build env var (REACT_APP_BACKEND_URL / REACT_APP_API_BASE_URL).
+    // 2. Runtime config injected into window.__MH_CONFIG__.
+    // 3. Local dev (react-scripts proxy on :5000) hits the local backend.
+    // 4. Everything else (production) falls back to the live Render backend —
+    //    never a hardcoded localhost in production.
+    const envBaseUrl =
+      (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL) ||
+      (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL) ||
+      '';
     const runtimeConfig = (typeof window !== 'undefined' && window.__MH_CONFIG__) || {};
+    if (envBaseUrl) return envBaseUrl.replace(/\/+$/, '');
+    if (runtimeConfig.API_BASE_URL) return String(runtimeConfig.API_BASE_URL).replace(/\/+$/, '');
     const localHost =
       typeof window !== 'undefined' &&
       ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-    if (localHost && !runtimeConfig.API_BASE_URL && !process.env.REACT_APP_API_BASE_URL) {
+    if (localHost && !runtimeConfig.API_BASE_URL) {
       return 'http://localhost:5000';
     }
     return API_BASE_URL;
@@ -107,34 +117,52 @@ function LoginRegister({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) 
     setForgotSending(true);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/send-password-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: email, type: 'email' }),
-        signal: controller.signal
-      });
-      const data = await res.json().catch(() => ({}));
+    let lastErr = null;
+    let data = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/auth/send-password-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target: email, type: 'email' }),
+          signal: controller.signal
+        });
+        data = await res.json().catch(() => ({}));
+        break;
+      } catch (err) {
+        lastErr = err;
+        const abortErr = err && (err.name === 'AbortError' || err.code === 'ECONNABORTED');
+        console.warn(`Send OTP error on attempt ${attempt + 1}/2:`, err?.name || err?.message);
+        if (!abortErr && attempt === 0) {
+          // Transient network hiccup — retry once immediately to survive
+          // Render cold starts before showing an error to the user.
+          continue;
+        }
+        break;
+      }
+    }
+
+    if (data) {
       if (data.success) {
         setOtpSent(true);
         alert(data.message);
       } else {
         alert(data.message || 'Failed to send OTP');
       }
-    } catch (err) {
-      if (err && err.name === 'AbortError') {
-        console.error('Send OTP error: request timed out after 15s');
-        alert('OTP request timed out. Please make sure the backend server is running, then try again.');
+    } else if (lastErr) {
+      const abortErr = lastErr.name === 'AbortError' || lastErr.code === 'ECONNABORTED';
+      if (abortErr) {
+        console.error(`Send OTP error: request timed out after ${DEFAULT_TIMEOUT / 1000}s`);
+        alert(`The backend is still starting up. OTP request timed out after ${DEFAULT_TIMEOUT / 1000}s. Please wait a moment and try again.`);
       } else {
-        console.error('Send OTP error:', err);
+        console.error('Send OTP error:', lastErr);
         alert('Network error. Please make sure the backend server is running.');
       }
-    } finally {
-      clearTimeout(timeoutId);
-      setForgotSending(false);
     }
+    clearTimeout(timeoutId);
+    setForgotSending(false);
   };
 
   const handleResetPassword = async (e) => {
