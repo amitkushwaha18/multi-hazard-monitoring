@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const Brevo = require('@getbrevo/brevo');
 const User = require('../models/User');
 require('dotenv').config();
 
@@ -12,21 +12,38 @@ const resetOtpStore = new Map();
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
+const brevoApi = new Brevo.TransactionalEmailsApi();
+if (process.env.BREVO_API_KEY) {
+  brevoApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+}
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: gmailAddress,
-    pass: process.env.GMAIL_APP_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 15000, // 15 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000
-});
+const SENDER_NAME = process.env.SENDER_NAME || 'SHM Monitor';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'amitkushwaha0804@gmail.com';
+
+const EMAIL_REQUEST_TIMEOUT_MS = 20000;
+
+const sendViaBrevo = async ({ to, subject, html, text }) => {
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = html;
+  if (text) sendSmtpEmail.textContent = text;
+  sendSmtpEmail.sender = { name: SENDER_NAME, email: SENDER_EMAIL };
+  sendSmtpEmail.to = [{ email: to }];
+
+  try {
+    const response = await Promise.race([
+      brevoApi.sendTransacEmail(sendSmtpEmail),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Brevo API request timed out')), EMAIL_REQUEST_TIMEOUT_MS)
+      )
+    ]);
+    console.log(`[EMAIL OTP] Sent via Brevo → ${to} (messageId: ${response?.messageId || 'n/a'})`);
+    return true;
+  } catch (err) {
+    console.error('[EMAIL OTP] Brevo send failed:', err?.message || err);
+    throw err;
+  }
+};
 
 const sendEmailOtp = async ({ to, otp, purpose }) => {
   const toAddress = String(to || '').toLowerCase().trim();
@@ -52,31 +69,14 @@ const sendEmailOtp = async ({ to, otp, purpose }) => {
   `;
   const text = `Your SHM Monitor OTP is ${otp}. It is valid for 5 minutes.`;
 
-  const mailOptions = {
-    from: `"SHM Multi-Hazard Security" <${gmailAddress}>`,
-    to: toAddress,
-    subject,
-    html,
-    text
-  };
   try {
-    await transporter.sendMail(mailOptions);
-    return true;
+    if (!process.env.BREVO_API_KEY) {
+      console.error('[EMAIL OTP] OTP delivery FAILED: Brevo API key missing (set BREVO_API_KEY in backend/.env).');
+      throw new Error('OTP delivery failed: Email service is not configured on the server (missing BREVO_API_KEY).');
+    }
+    return await sendViaBrevo({ to: toAddress, subject, html, text });
   } catch (err) {
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASS) {
-      console.error('[EMAIL OTP] OTP delivery FAILED: Gmail SMTP credentials missing (set GMAIL_USER / GMAIL_APP_PASS in backend/.env).', err);
-      throw new Error('OTP delivery failed: Email service credentials are missing on the server (GMAIL_USER / GMAIL_APP_PASS).');
-    }
-    const smtpCode = String(err?.code || '');
-    if (smtpCode === 'EAUTH') {
-      console.error('[EMAIL OTP] Gmail SMTP AUTH failed — verify GMAIL_USER and GMAIL_APP_PASS (App Password) in backend/.env. Server response:', err.response || err.message);
-      throw new Error('OTP delivery failed: Gmail SMTP authentication rejected (invalid GMAIL_USER / GMAIL_APP_PASS combination).');
-    }
-    if (['ECONNECTION', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'ESOCKET'].includes(smtpCode)) {
-      console.error(`[EMAIL OTP] Gmail SMTP network error (${smtpCode}) — host/connectivity issue reaching smtp.gmail.com:`, err.message);
-      throw new Error('OTP delivery failed: Could not reach the Gmail SMTP server (network error).');
-    }
-    console.error('[EMAIL OTP] Failed to send email via Gmail SMTP:', err);
+    console.error('[EMAIL OTP] Failed to send email via Brevo:', err);
     throw new Error(`Failed to send OTP email: ${err.message}`);
   }
 };
@@ -310,7 +310,7 @@ router.post('/send-password-otp', async (req, res) => {
 
     const sent = await sendEmailOtp({ to: cleanTarget, otp: generatedOtp, purpose: 'reset' });
     if (!sent) {
-      throw new Error('Failed to send OTP email via Gmail SMTP.');
+      throw new Error('Failed to send OTP email via Brevo.');
     }
 
     return res.status(200).json({ success: true, message: 'OTP sent successfully' });

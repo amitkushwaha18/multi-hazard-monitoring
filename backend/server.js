@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-const nodemailer = require('nodemailer'); // Added Nodemailer for direct real OTP sending
 const { startHazardAlertService } = require('./services/hazardAlertService');
 const { GoogleGenAI } = require('@google/genai');
 const User = require('./models/User');
@@ -10,21 +9,6 @@ const authRoutes = require('./routes/auth');
 require('dotenv').config();
 
 const app = express();
-
-// Nodemailer Transporter Configuration (Using Gmail App Password for instant delivery)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com', // Your Gmail Address
-    pass: process.env.GMAIL_APP_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 15000, // 15 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000
-});
 
 // Middleware
 app.use(express.json());

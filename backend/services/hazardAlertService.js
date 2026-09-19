@@ -2,28 +2,22 @@
 // Hazard Alert & Early Warning Service (Server-Side Background Monitor)
 // ----------------------------------------------------------------------------
 // Continuously polls live hazard feeds (Earthquake / Cyclone / Flood),
-// evaluates HIGH RISK events and automatically dispatches Gmail SMTP alert
+// evaluates HIGH RISK events and automatically dispatches Brevo alert
 // emails to every registered user — entirely server-side, no browser needed.
 // ============================================================================
 
 require('dotenv').config();
-const nodemailer = require('nodemailer');
+const Brevo = require('@getbrevo/brevo');
 
-const gmailAddress = process.env.GMAIL_USER || 'amitkushwaha0804@gmail.com';
+const brevoApi = new Brevo.TransactionalEmailsApi();
+if (process.env.BREVO_API_KEY) {
+  brevoApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+}
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: gmailAddress,
-    pass: process.env.GMAIL_APP_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 15000, // 15 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000
-});
+const SENDER_NAME = process.env.SENDER_NAME || 'SHM Monitor';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'amitkushwaha0804@gmail.com';
+
+const EMAIL_REQUEST_TIMEOUT_MS = 20000;
 
 // ---------------------------------------------------------------------------
 // Configuration (all overridable via environment variables)
@@ -160,7 +154,7 @@ const scanFlood = async (loc) => {
 };
 
 // ---------------------------------------------------------------------------
-// Gmail SMTP email dispatch (via Nodemailer) to registered users located in
+// Brevo HTTPS API email dispatch to registered users located in
 // the affected alert region.
 // ---------------------------------------------------------------------------
 const getAllRegisteredUsers = async () => {
@@ -256,7 +250,7 @@ const buildEmailContent = (event) => {
           </div>
           <div style="color:#64748b;font-size:11px;margin-top:16px;text-align:center;">
             This is an automated early-warning notification from the Multi-Hazard Monitoring System.<br/>
-            Geo-Tagged • CAP Protocol • Delivered via Gmail SMTP
+            Geo-Tagged • CAP Protocol • Delivered via Brevo HTTPS API
           </div>
         </div>
       </div>
@@ -266,24 +260,34 @@ const buildEmailContent = (event) => {
     `🚨 HIGH RISK ALERT: ${event.title}\n\n` +
     `Affected Area: ${event.place}\nSeverity: HIGH RISK\n\n` +
     `Immediate actions: follow local authorities, move to higher ground, ` +
-    `and stay tuned to official alerts.\n\n— SHM Multi-Hazard Monitoring System (automated via Gmail SMTP)`;
+    `and stay tuned to official alerts.\n\n— SHM Multi-Hazard Monitoring System (automated via Brevo HTTPS API)`;
 
   return { subject, html, text };
 };
 
 const sendAlertEmail = async ({ to, subject, html, text }) => {
+  if (!process.env.BREVO_API_KEY) {
+    console.error(`[HazardAlert] Brevo API key missing (BREVO_API_KEY not set) → ${to}`);
+    return false;
+  }
   try {
-    await transporter.sendMail({
-      from: `"SHM Multi-Hazard Monitoring" <${gmailAddress}>`,
-      to,
-      subject,
-      html,
-      text
-    });
-    console.log(`[HazardAlert] ✔ Alert email sent via Gmail SMTP → ${to}`);
+    const sendSmtpEmail = new Brevo.SendSmtpEmail();
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html;
+    if (text) sendSmtpEmail.textContent = text;
+    sendSmtpEmail.sender = { name: SENDER_NAME, email: SENDER_EMAIL };
+    sendSmtpEmail.to = [{ email: to }];
+
+    const response = await Promise.race([
+      brevoApi.sendTransacEmail(sendSmtpEmail),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Brevo API request timed out')), EMAIL_REQUEST_TIMEOUT_MS)
+      )
+    ]);
+    console.log(`[HazardAlert] ✔ Alert email sent via Brevo → ${to} (messageId: ${response?.messageId || 'n/a'})`);
     return true;
   } catch (err) {
-    console.error(`[HazardAlert] Gmail SMTP send failed → ${to}:`, err.message);
+    console.error(`[HazardAlert] Brevo send failed → ${to}:`, err?.message || err);
     return false;
   }
 };
@@ -412,7 +416,7 @@ const runScan = async () => {
   };
 
   if (toNotify.length) {
-    console.log(`[HazardAlert] ${toNotify.length} new HIGH RISK event(s) → dispatching Gmail SMTP emails to registered users.`);
+    console.log(`[HazardAlert] ${toNotify.length} new HIGH RISK event(s) → dispatching Brevo emails to registered users.`);
     await dispatchAlerts(toNotify);
   } else {
     console.log(`[HazardAlert] Scan complete — ${detected.length} high-risk event(s) detected, none new.`);
@@ -439,7 +443,7 @@ const startHazardAlertService = (userModel) => {
   monitorInterval = setInterval(() => runScan(), MONITOR_INTERVAL_MS);
   console.log(
     `[HazardAlert] Background hazard alert service started — scanning Earthquake/Cyclone/Flood every ` +
-    `${Math.round(MONITOR_INTERVAL_MS / 1000)}s, dispatching via Gmail SMTP.`
+    `${Math.round(MONITOR_INTERVAL_MS / 1000)}s, dispatching via Brevo HTTPS API.`
   );
 
   // Run an initial scan shortly after boot.
