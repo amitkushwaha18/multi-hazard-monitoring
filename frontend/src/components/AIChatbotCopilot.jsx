@@ -98,23 +98,33 @@ const AIChatbotCopilot = ({ contextData }) => {
   const isMale = (name) => MALE_VOICE_HINTS.some((h) => name.toLowerCase().includes(h));
   const isHQ = (name) => /natural|online|neural|google/i.test(name);
 
+  const isHindi = (lang) => {
+    const l = (lang || '').toLowerCase();
+    return l === 'hi-in' || l.startsWith('hi');
+  };
+
   const pickFemaleVoice = () => {
     const voices = voicesRef.current.length ? voicesRef.current : window.speechSynthesis.getVoices();
     if (!voices.length) return null;
+    const hindiVoices = voices.filter((v) => isHindi(v.lang));
+    const pool = hindiVoices.length ? hindiVoices : voices;
+    const hasHindi = hindiVoices.length > 0;
     const score = (v) => {
       const name = (v.name || '').toLowerCase();
       const lang = (v.lang || '').toLowerCase();
       let s = 0;
-      if (isFemale(name)) s += 30;
-      if (isMale(name)) s -= 40;
-      if (lang.startsWith('hi-in')) s += 20;
-      else if (lang.startsWith('en-in')) s += 15;
-      else if (lang.startsWith('en')) s += 8;
+      if (isMale(name)) s -= 1000;
+      if (isFemale(name)) s += 50;
+      if (/swara|हिन्दी|हिंदी|heera|neerja|kalpana|priya|rani|pooja/i.test(name)) s += 25;
       if (isHQ(name)) s += 10;
+      if (lang.startsWith('hi')) s += 30;
+      else if (lang.startsWith('en-in')) s += 12;
+      else if (lang.startsWith('en')) s += 5;
       if (v.default) s += 2;
+      if (!hasHindi && !/^hi/.test(lang)) s -= 20;
       return s;
     };
-    return [...voices].sort((a, b) => score(b) - score(a))[0];
+    return [...pool].sort((a, b) => score(b) - score(a))[0];
   };
 
   const speakText = (text) => {
@@ -129,8 +139,8 @@ const AIChatbotCopilot = ({ contextData }) => {
     const utterance = new SpeechSynthesisUtterance(readable);
     const voice = pickFemaleVoice();
     if (voice) utterance.voice = voice;
-    utterance.lang = (voice && voice.lang) || 'hi-IN';
-    utterance.rate = 1.0;
+    utterance.lang = 'hi-IN';
+    utterance.rate = 0.95;
     utterance.pitch = 1.0;
     utterance.volume = 1;
     utterance.onstart = () => { speakingRef.current = true; setSpeaking(true); };
