@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const { startHazardAlertService } = require('./services/hazardAlertService');
 const { GoogleGenAI } = require('@google/genai');
+const OpenAI = require('openai');
 const User = require('./models/User');
 const authRoutes = require('./routes/auth');
 require('dotenv').config();
@@ -186,9 +187,9 @@ app.get('/api/hazards/cyclone', async (req, res) => {
   }
 });
 
-// 8. Jarvis AI Chat Backend Endpoint
+// 8. Jarvis / AI Chat Backend Endpoint
 const defaultJarvisSystemPrompt = (lang) => `JARVIS CORE PROTOCOL
-IDENTITY: You are JARVIS, an efficient, professional, warm and slightly witty AI assistant embedded in a Multi-Hazard Disaster Dashboard. No fluff.
+IDENTITY: You are JARVIS / StructAI Assistant, an efficient, professional, warm and knowledgeable AI assistant embedded in a Multi-Hazard Disaster Dashboard.
 
 LANGUAGE:
 - The language of your reply is the language of the user's MOST RECENT message. Nothing else decides it.
@@ -198,10 +199,10 @@ LANGUAGE:
 - Current language hint for this request: ${lang}
 
 EXECUTION RULES:
-- You can discuss any topic (general knowledge, casual chat, advice, disaster safety).
-- Speak like a real person having a casual conversation.
-- Keep replies short (1-3 sentences) and conversational.
-- Always react fast; speed is your number one priority. Don't make it complicated and slow.`;
+- You can discuss any topic (general knowledge, casual chat, advice, disaster safety, structural health monitoring).
+- Speak like a real person having a helpful conversation.
+- Keep replies clear, concise, and helpful.
+- Always react fast; speed is your number one priority.`;
 
 let genaiClient = null;
 
@@ -215,13 +216,14 @@ const getGenaiClient = () => {
 };
 
 const JARVIS_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+const GROQ_MODELS = ['groq/compound-mini', 'groq/compound', 'llama-3.3-70b-versatile', 'llama3-8b-8192', 'qwen/qwen3.8-27b'];
 
 const jarvisChatHandler = async (req, res) => {
   const lang = typeof req.body?.lang === 'string' ? req.body.lang : 'en-US';
   const offlineReply = (l) =>
     l === 'hi-IN'
-      ? 'Jarvis AI abhi offline hai, kripya API key check karein.'
-      : 'Jarvis AI is offline, please check API key.';
+      ? 'AI Assistant abhi offline hai, kripya GROQ_API_KEY check karein.'
+      : 'AI Assistant is offline, please check GROQ_API_KEY.';
 
   try {
     const message = typeof req.body?.message === 'string' ? req.body.message : String(req.body?.message || '').trim();
@@ -231,44 +233,47 @@ const jarvisChatHandler = async (req, res) => {
         ? req.body.systemPrompt.trim()
         : defaultJarvisSystemPrompt(lang);
 
-    const ai = getGenaiClient();
-    if (!ai) {
-      console.warn('Jarvis chat: GEMINI_API_KEY is not set in .env');
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      console.error('Jarvis/Chat: GROQ_API_KEY is not set in .env — Groq API call aborted.');
       return res.json({ reply: offlineReply(lang) });
     }
 
-    const contents = [];
+    const groq = new OpenAI({
+      apiKey: GROQ_API_KEY,
+      baseURL: "https://api.groq.com/openai/v1"
+    });
+
+    const messages = [{ role: 'system', content: systemPrompt }];
     for (const h of history.slice(-8)) {
-      const role = h.role === 'assistant' || h.role === 'model' ? 'model' : 'user';
+      const role = h.role === 'assistant' || h.role === 'model' ? 'assistant' : 'user';
       const text = typeof h.content === 'string' ? h.content : String(h.content || '');
-      if (text) contents.push({ role, parts: [{ text }] });
+      if (text) messages.push({ role, content: text });
     }
-    contents.push({ role: 'user', parts: [{ text: message }] });
+    messages.push({ role: 'user', content: message });
 
     let replyText = '';
     let lastErr = null;
-    for (const model of JARVIS_MODELS) {
+    for (const model of GROQ_MODELS) {
       try {
-        const response = await ai.models.generateContent({
-          model,
-          contents,
-          config: { systemInstruction: systemPrompt }
-        });
-        replyText = (response?.text || '').trim();
+        const completion = await groq.chat.completions.create({ model, messages });
+        replyText = (completion?.choices?.[0]?.message?.content || '').trim();
         if (replyText) break;
       } catch (err) {
         lastErr = err;
-        console.warn(`Jarvis chat: model ${model} failed — ${String(err.message).slice(0, 160)}, trying next.`);
+        console.error(
+          `Jarvis/Chat: Groq model ${model} failed — status=${err?.status} message=${String(err?.message).slice(0, 200)}, trying next.`
+        );
       }
     }
 
     if (!replyText) {
-      console.error('Jarvis backend error (falling back to offline reply):', lastErr);
+      console.error('Jarvis/Chat: all Groq models failed (falling back to offline reply). Last error:', lastErr);
       return res.json({ reply: offlineReply(lang) });
     }
     res.json({ reply: replyText });
   } catch (err) {
-    console.error('Jarvis backend error (falling back to offline reply):', err);
+    console.error('Backend error (falling back to offline reply):', err);
     res.json({ reply: offlineReply(lang) });
   }
 };
