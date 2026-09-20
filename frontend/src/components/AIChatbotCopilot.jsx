@@ -1,19 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GEMINI_API_KEY, GEMINI_MODEL, API_BASE_URL } from '../config';
 
-const SYSTEM_PROMPT = `
-You are "Raakshak AI" — the multilingual multi-hazard safety copilot of a Multi-Hazard
-Monitoring System covering Flood / Urban Waterlogging, Earthquake / Seismic Activity,
-Cyclone / Heavy Winds, Heatwave, Tsunami, and Landslide.
+const SYSTEM_PROMPT = (contextData = {}) => `
+YOU ARE STRUCT AI COPILOT, A REAL-TIME MULTI-HAZARD DISASTER AND STRUCTURAL HEALTH ASSISTANT EMBEDDED IN THIS DASHBOARD.
+YOU HAVE ACCESS TO LIVE REAL-TIME SENSOR AND HAZARD TELEMETRY DATA BELOW:
 
-## Language behavior (CRITICAL)
-- Detect the language of the user's latest message: English, Hindi (हिन्दी), Hinglish,
-  Tamil, Bengali, Telugu, Marathi, Gujarati, Urdu, Punjabi, Malayalam, Kannada, Odia, or
-  any other regional language/dialect.
-- ALWAYS reply fluently in the SAME language/dialect the user used. For Hinglish, mirror
-  their mix of Devanagari/Roman script naturally.
-- If the user mixes languages, mirror their mix accordingly.
-- Keep answers clear, practical, and appropriately concise.
+LIVE SYSTEM CONTEXT:
+${JSON.stringify(contextData || {}, null, 2)}
+
+STRICT LANGUAGE & IDENTITY RULES:
+- Your name is STRUCT AI COPILOT.
+- Speak ONLY in English or Hinglish (Hindi written in Roman/English script, e.g., "Main aapko live data ke basis par bata raha hu").
+- NEVER use Devanagari script (DO NOT write in "हिंदी" script like "जानकारी नहीं दे सकता").
+- Keep the tone casual, respectful, professional, and friendly.
 
 ## Role & scope
 - Answer general queries AND multi-hazard emergency safety questions (Earthquake, Flood,
@@ -27,22 +26,26 @@ Cyclone / Heavy Winds, Heatwave, Tsunami, and Landslide.
   * Heatwave: hydrate, avoid direct sun between 12-4 PM, recognize heatstroke signs.
 - Mention official helplines where relevant (e.g., NDRF 011-24363260, emergency helpline
   112) and always advise contacting local authorities for live evacuation orders.
-- Never fabricate live sensor readings or location-specific data; use general knowledge only.
+- Always analyze the LIVE SYSTEM CONTEXT above to answer queries regarding flood levels,
+  wind speeds, cyclone alerts, earthquake updates, or structural asset health.
+- NEVER say "I don't have access to real-time data". You DO have live access via contextData.
+- Provide clear risk predictions and immediate safety steps based on live telemetry numbers.
 - Be reassuring and decisive. Never give medical or legal advice; defer to professionals
   when unsure.
 `;
 
 const CTA_OPTIONS = [
-  'भूकंप में क्या करें?',
+  'Earthquake mein kya karein?',
   'Flood safety tips',
   'Cyclone preparedness',
-  'हीटवेव से बचाव के तरीके'
+  'Heatwave se bachav ke tarike'
 ];
 
-const AIChatbotCopilot = () => {
+const AIChatbotCopilot = ({ contextData }) => {
+  const liveContext = (typeof contextData === 'object' && contextData !== null) ? contextData : {};
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'ai', text: 'Namaste! 🙏 I am Raakshak AI, your multilingual multi-hazard safety copilot. Ask me in English, हिन्दी, Hinglish or any regional language about Earthquake, Flood, Cyclone or Heatwave safety.' }
+    { sender: 'ai', text: 'Namaste! 🙏 I am Struct AI Copilot, your real-time multi-hazard disaster & structural health assistant. Ask me in English or Hinglish about live flood, cyclone, earthquake or asset sensor telemetry.' }
   ]);
   const [inputVal, setInputVal] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -91,7 +94,7 @@ const AIChatbotCopilot = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT(liveContext) }] },
           contents,
           generationConfig: {
             temperature: 0.4,
@@ -142,7 +145,8 @@ const AIChatbotCopilot = () => {
           message,
           lang: 'en-US',
           history: mapped,
-          systemPrompt: SYSTEM_PROMPT
+          systemPrompt: SYSTEM_PROMPT(liveContext),
+          contextData: liveContext
         })
       });
     } catch (networkErr) {
@@ -275,10 +279,10 @@ const AIChatbotCopilot = () => {
                 justifyContent: 'center', fontSize: '20px'
               }}>🤖</div>
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>Raakshak AI Copilot</div>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>Struct AI Copilot</div>
                 <div style={{ fontSize: '11px', color: '#a5f3fc', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
-                  Online • 🌐 Multilingual (हिन्दी • Hinglish • English)
+                  Online • 🛰️ Live Telemetry • English • Hinglish
                 </div>
               </div>
             </div>
@@ -393,7 +397,7 @@ const AIChatbotCopilot = () => {
               type="text"
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
-              placeholder="Ask in any language… (e.g., भूकंप में क्या करें?)"
+              placeholder="Ask in English or Hinglish… (e.g., Lucknow mein flood risk kya hai?)"
               style={{
                 flex: 1,
                 background: '#020617',

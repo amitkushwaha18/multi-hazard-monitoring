@@ -187,22 +187,25 @@ app.get('/api/hazards/cyclone', async (req, res) => {
   }
 });
 
-// 8. Jarvis / AI Chat Backend Endpoint
-const defaultJarvisSystemPrompt = (lang) => `JARVIS CORE PROTOCOL
-IDENTITY: You are JARVIS / StructAI Assistant, an efficient, professional, warm and knowledgeable AI assistant embedded in a Multi-Hazard Disaster Dashboard.
+// 8. Struct AI Copilot / AI Chat Backend Endpoint
+const buildStructCopilotPrompt = (contextData) => `
+YOU ARE STRUCT AI COPILOT, A REAL-TIME MULTI-HAZARD DISASTER AND STRUCTURAL HEALTH ASSISTANT EMBEDDED IN THIS DASHBOARD.
+YOU HAVE ACCESS TO LIVE REAL-TIME SENSOR AND HAZARD TELEMETRY DATA BELOW:
 
-LANGUAGE:
-- The language of your reply is the language of the user's MOST RECENT message. Nothing else decides it.
-- If the user writes Hindi in Roman letters ("Hinglish"), reply the same way - Hindi words in Roman script. If they write Devanagari Hindi, reply in Devanagari.
-- Never answer in a language the user has not used, and never mix two languages in one reply.
-- Address the user with the ordinary respectful form of the language you are speaking.
-- Current language hint for this request: ${lang}
+LIVE SYSTEM CONTEXT:
+${JSON.stringify(contextData || {}, null, 2)}
 
-EXECUTION RULES:
-- You can discuss any topic (general knowledge, casual chat, advice, disaster safety, structural health monitoring).
-- Speak like a real person having a helpful conversation.
-- Keep replies clear, concise, and helpful.
-- Always react fast; speed is your number one priority.`;
+STRICT LANGUAGE & IDENTITY RULES:
+- Your name is STRUCT AI COPILOT.
+- Speak ONLY in English or Hinglish (Hindi written in Roman/English script, e.g., "Main aapko live data ke basis par bata raha hu").
+- NEVER use Devanagari script (DO NOT write in "हिंदी" script like "जानकारी नहीं दे सकता").
+- Keep the tone casual, respectful, professional, and friendly.
+
+EXECUTION INSTRUCTIONS:
+- Always analyze the LIVE SYSTEM CONTEXT above to answer queries regarding flood levels, wind speeds, cyclone alerts, earthquake updates, or structural asset health.
+- NEVER say "I don't have access to real-time data". You DO have live access via contextData.
+- Provide clear risk predictions and immediate safety steps based on live telemetry numbers.
+`;
 
 let genaiClient = null;
 
@@ -215,27 +218,36 @@ const getGenaiClient = () => {
   return genaiClient;
 };
 
-const JARVIS_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+const STRUCT_COPILOT_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
 const GROQ_MODELS = ['groq/compound-mini', 'groq/compound', 'llama-3.3-70b-versatile', 'llama3-8b-8192', 'qwen/qwen3.8-27b'];
 
 const jarvisChatHandler = async (req, res) => {
   const lang = typeof req.body?.lang === 'string' ? req.body.lang : 'en-US';
   const offlineReply = (l) =>
     l === 'hi-IN'
-      ? 'AI Assistant abhi offline hai, kripya GROQ_API_KEY check karein.'
-      : 'AI Assistant is offline, please check GROQ_API_KEY.';
+      ? 'Struct AI Copilot abhi offline hai, kripya GROQ_API_KEY check karein.'
+      : 'Struct AI Copilot is offline, please check GROQ_API_KEY.';
 
   try {
     const message = typeof req.body?.message === 'string' ? req.body.message : String(req.body?.message || '').trim();
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
-    const systemPrompt =
+    const contextData =
+      req.body?.contextData && typeof req.body.contextData === 'object' && !Array.isArray(req.body.contextData)
+        ? req.body.contextData
+        : {};
+
+    const structuredPrompt = buildStructCopilotPrompt(contextData);
+    const customPrompt =
       typeof req.body?.systemPrompt === 'string' && req.body.systemPrompt.trim()
         ? req.body.systemPrompt.trim()
-        : defaultJarvisSystemPrompt(lang);
+        : '';
+    const systemPrompt = customPrompt
+      ? `${structuredPrompt}\n\nADDITIONAL GUIDELINES FROM THE EMBEDDING APP:\n${customPrompt}`
+      : structuredPrompt;
 
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
     if (!GROQ_API_KEY) {
-      console.error('Jarvis/Chat: GROQ_API_KEY is not set in .env — Groq API call aborted.');
+      console.error('StructCopilot/Chat: GROQ_API_KEY is not set in .env — Groq API call aborted.');
       return res.json({ reply: offlineReply(lang) });
     }
 
@@ -262,13 +274,13 @@ const jarvisChatHandler = async (req, res) => {
       } catch (err) {
         lastErr = err;
         console.error(
-          `Jarvis/Chat: Groq model ${model} failed — status=${err?.status} message=${String(err?.message).slice(0, 200)}, trying next.`
+          `StructCopilot/Chat: Groq model ${model} failed — status=${err?.status} message=${String(err?.message).slice(0, 200)}, trying next.`
         );
       }
     }
 
     if (!replyText) {
-      console.error('Jarvis/Chat: all Groq models failed (falling back to offline reply). Last error:', lastErr);
+      console.error('StructCopilot/Chat: all Groq models failed (falling back to offline reply). Last error:', lastErr);
       return res.json({ reply: offlineReply(lang) });
     }
     res.json({ reply: replyText });

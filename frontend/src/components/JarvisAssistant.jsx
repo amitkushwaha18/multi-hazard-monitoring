@@ -2,25 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 
-// Ported from the standalone /Jarvis implementation (core/prompt.txt + main.py):
-// the JARVIS system instruction is sent to the backend so the Gemini call
-// initialises exactly like the standalone `genai.Client(api_key=...)` +
-// `generate_content(model="gemini-flash-latest", ...)` flow.
-const JARVIS_SYSTEM_PROMPT = (lang) => `JARVIS CORE PROTOCOL
-IDENTITY: You are JARVIS, an efficient, professional, warm and slightly witty AI assistant embedded in a Multi-Hazard Disaster Dashboard. No fluff.
+const STRUCT_COPILOT_SYSTEM_PROMPT = (contextData) => `
+YOU ARE STRUCT AI COPILOT, A REAL-TIME MULTI-HAZARD DISASTER AND STRUCTURAL HEALTH ASSISTANT EMBEDDED IN THIS DASHBOARD.
+YOU HAVE ACCESS TO LIVE REAL-TIME SENSOR AND HAZARD TELEMETRY DATA BELOW:
 
-LANGUAGE:
-- The language of your reply is the language of the user's MOST RECENT message. Nothing else decides it.
-- If the user writes Hindi in Roman letters ("Hinglish"), reply the same way - Hindi words in Roman script. If they write Devanagari Hindi, reply in Devanagari.
-- Never answer in a language the user has not used, and never mix two languages in one reply.
-- Address the user with the ordinary respectful form of the language you are speaking.
-- Current language hint for this request: ${lang}
+LIVE SYSTEM CONTEXT:
+${JSON.stringify(contextData || {}, null, 2)}
 
-EXECUTION RULES:
-- You can discuss any topic (general knowledge, casual chat, advice, disaster safety).
-- Speak like a real person having a casual conversation.
-- Keep replies short (1-3 sentences) and conversational.
-- Always react fast; speed is your number one priority. Don't make it complicated and slow.`;
+STRICT LANGUAGE & IDENTITY RULES:
+- Your name is STRUCT AI COPILOT.
+- Speak ONLY in English or Hinglish (Hindi written in Roman/English script, e.g., "Main aapko live data ke basis par bata raha hu").
+- NEVER use Devanagari script (DO NOT write in "हिंदी" script like "जानकारी नहीं दे सकता").
+- Keep the tone casual, respectful, professional, and friendly.
+
+EXECUTION INSTRUCTIONS:
+- Always analyze the LIVE SYSTEM CONTEXT above to answer queries regarding flood levels, wind speeds, cyclone alerts, earthquake updates, or structural asset health.
+- NEVER say "I don't have access to real-time data". You DO have live access via contextData.
+- Provide clear risk predictions and immediate safety steps based on live telemetry numbers.
+`;
 
 const HAZARD_MODALS = {
   flood: ['flood', 'badh', 'barish', 'water logging', 'waterlogging'],
@@ -82,11 +81,56 @@ const parseDashCommand = (text) => {
   return null;
 };
 
-const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
+const buildContextData = ({ selectedLocation, seismicEvents, assets }) => {
+  const risk = selectedLocation?.risk || null;
+  const telemetry = selectedLocation?.telemetry || null;
+  const eqEvents = Array.isArray(seismicEvents) ? seismicEvents : [];
+  const evToContext = (ev) => ({
+    magnitude: ev?.properties?.mag,
+    place: ev?.properties?.place,
+    time: ev?.properties?.time ? new Date(ev.properties.time).toISOString() : null
+  });
+  const maxMagnitude = eqEvents.reduce((m, ev) => Math.max(m, ev?.properties?.mag || 0), 0);
+  const assetList = Array.isArray(assets) ? assets : [];
+  return {
+    location: selectedLocation
+      ? { city: selectedLocation.cityName, lat: selectedLocation.lat, lng: selectedLocation.lng }
+      : null,
+    flood: {
+      risk: risk?.floodRisk || null,
+      precipitationMm: risk?.precipitationMm ?? null,
+      currentPrecipitation: telemetry?.currentPrecipitation ?? null,
+      currentTemperature: telemetry?.currentTemperature ?? null,
+      currentSoilMoisture: telemetry?.currentSoilMoisture ?? null,
+      peakHourlyPrecipitation: telemetry?.peakHourlyPrecipitation ?? null
+    },
+    cyclone: {
+      risk: risk?.cycloneRisk || null,
+      windSpeedKmh: risk?.windSpeedKmh ?? null
+    },
+    earthquake: {
+      risk: risk?.seismicRisk || null,
+      magnitude: risk?.magnitude ?? maxMagnitude,
+      recentEvents: eqEvents.slice(0, 5).map(evToContext)
+    },
+    assets: assetList.map((a) => ({
+      name: a?.name,
+      type: a?.type,
+      status: a?.status,
+      city: a?.location?.city,
+      structuralHealthIndex: a?.healthMetrics?.structuralHealthIndex ?? null,
+      vibration: a?.healthMetrics?.vibration ?? null,
+      tilt: a?.healthMetrics?.tilt ?? null,
+      crackWidth: a?.healthMetrics?.crackWidth ?? null
+    }))
+  };
+};
+
+const JarvisAssistant = ({ onDashCommand, voiceResult, selectedLocation, seismicEvents, assets }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { sender: 'jarvis', text: 'Namaste! Main Jarvis hoon, aapki AI Assistant. Kuchh bhi puchiye, main sun rahi hoon.' }
+    { sender: 'jarvis', text: 'Namaste! 🙏 Main Struct AI Copilot hoon, aapka real-time multi-hazard disaster aur structural health assistant. Flood, cyclone, earthquake aur asset sensor data ke live telemetry ke basis par turant guidance de sakta hoon. English ya Hinglish mein poochhiye!' }
   ]);
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,7 +249,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
     recognition.onend = () => { setIsListening(false); maybeResumeListening(); };
 
     recognition.onresult = (event) => {
-      // Mirrors the standalone Jarvis mic gate: while Jarvis is speaking the
+      // Mirrors the standalone Jarvis mic gate: while Struct AI Copilot is speaking the
       // mic feed is ignored so it never triggers on its own TTS audio.
       if (isSpeakingRef.current || loadingRef.current) return;
       const speechText = event.results[0][0].transcript;
@@ -241,14 +285,15 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
   };
 
   // Bypassing proxy completely by using direct absolute URL to port 5000.
-  // Mirrors the standalone Jarvis execution: JARVIS system instruction +
-  // multi-turn history + the latest user message are passed to the backend,
-  // which makes the Gemini call exactly like the standalone client.
+  // Mirrors the standalone Jarvis execution: Struct AI Copilot system instruction +
+  // multi-turn history + live telemetry contextData + the latest user message
+  // are passed to the backend, which makes the Groq call.
   const callAI = async (queryText, lang) => {
     const safeText = toText(queryText);
     if (!safeText) return null;
     const history = historyRef.current.slice(-8);
-    const systemPrompt = JARVIS_SYSTEM_PROMPT(lang);
+    const contextData = buildContextData({ selectedLocation, seismicEvents, assets });
+    const systemPrompt = STRUCT_COPILOT_SYSTEM_PROMPT(contextData);
     const endpoints = [
       `${API_BASE_URL}/api/jarvis-chat`,
       `${API_BASE_URL}/api/chat`
@@ -259,7 +304,8 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
           message: safeText,
           lang,
           history,
-          systemPrompt
+          systemPrompt,
+          contextData
         }, { timeout: 30000 });
         if (res?.data?.reply) return res.data.reply;
       } catch (err) {
@@ -375,7 +421,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
 
     if (!responseText) {
       responseText = isHindi 
-        ? "Main abhi server se connect nahi ho pa rahi hoon, kripya check karein ki backend server chalu hai ya nahi." 
+        ? "Main Struct AI Copilot abhi server se connect nahi ho pa rahi hoon, kripya check karein ki backend server chalu hai ya nahi." 
         : "I am unable to connect to the AI server right now. Please ensure the backend server is running.";
     }
 
@@ -412,7 +458,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '28px', color: '#fff', boxShadow: '0 8px 30px rgba(219,39,119,0.5)'
           }}
-          title="Open Jarvis AI Assistant"
+          title="Open Struct AI Copilot"
         >
           👩‍💻
         </button>
@@ -432,7 +478,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>💖</span>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', color: '#fff', fontWeight: 'bold' }}>JARVIS (AI ASSISTANT)</h3>
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#fff', fontWeight: 'bold' }}>STRUCT AI COPILOT</h3>
                 <span style={{ fontSize: '10px', color: '#f472b6', letterSpacing: '1px' }}>
                   {isSpeaking ? '🔊 SPEAKING...' : voiceMode ? '🎙️ LIVE VOICE MODE ACTIVE' : '● AUTO-LANG & CHAT ACTIVE'}
                 </span>
@@ -456,7 +502,7 @@ const JarvisAssistant = ({ onDashCommand, voiceResult }) => {
             ))}
             {loading && (
               <div style={{ alignSelf: 'flex-start', color: '#f472b6', fontSize: '12px', fontStyle: 'italic', padding: '6px' }}>
-                🔍 Jarvis analyzing & searching...
+                🔍 Struct AI Copilot analyzing live telemetry & searching...
               </div>
             )}
             {isListening && (

@@ -450,7 +450,12 @@ const AdminOverview = ({ user, onLogout }) => {
       </div>
 
       {/* Floating Voice Assistant & Modals */}
-      <JarvisAssistant onDashCommand={handleDashCommand} voiceResult={voiceResult} />
+      <JarvisAssistant
+        onDashCommand={handleDashCommand}
+        voiceResult={voiceResult}
+        selectedLocation={selectedLocation}
+        seismicEvents={seismicEvents}
+      />
       <FloodDetailModal isOpen={activeModal === 'flood'} onClose={() => setActiveModal(null)} />
       <EarthquakeDetailModal isOpen={activeModal === 'earthquake'} onClose={() => setActiveModal(null)} />
       <CycloneDetailModal isOpen={activeModal === 'cyclone'} onClose={() => setActiveModal(null)} />

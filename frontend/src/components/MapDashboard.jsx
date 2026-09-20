@@ -526,10 +526,13 @@ const MapDashboard = ({ user, onLogout }) => {
 
       </div>
 
-      {/* Floating AI Jarvis Assistant Box */}
+      {/* Floating Struct AI Copilot Chat Box */}
       <JarvisAssistant
         onDashCommand={handleDashCommand}
         voiceResult={voiceResult}
+        selectedLocation={selectedLocation}
+        seismicEvents={seismicEvents}
+        assets={assets}
       />
 
       {/* Hazard Detail Modals (voice-openable) */}
