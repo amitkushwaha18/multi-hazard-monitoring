@@ -28,11 +28,22 @@ _pipeline_cache: Dict[tuple, dict] = {}
 def _analysis_report(lat: float, lng: float, city_name: str = "") -> dict:
     """Run the full integrated pipeline once and cache briefly."""
     t0 = time.time()
-    # 1) live weather + hydrology telemetry
-    weather = fetch_weather_hydrology(lat, lng)
+    # 1) live weather + hydrology telemetry (external Open-Meteo/GloFAS)
+    try:
+        weather = fetch_weather_hydrology(lat, lng)
+    except Exception as err:
+        weather = None
+        weather_err = str(err)
 
     # 2) LSTM forecast + flood risk
-    lstm = run_forecast(lat, lng, weather, city_name)
+    if weather is None:
+        lstm = _lstm_error(f"weather telemetry unavailable: {weather_err}")
+    else:
+        try:
+            lstm = run_forecast(lat, lng, weather, city_name)
+            lstm["error"] = weather.error
+        except Exception as err:
+            lstm = _lstm_error(str(err))
 
     # 3) CNN aerial/drone analysis (structural + flood + road-grid)
     try:
@@ -81,6 +92,7 @@ def _cnn_to_dict(res):
     return {
         "imageSource": res.image_source,
         "imageUrl": res.imageUrl,
+        "error": getattr(res, "error", None) or None,
         "structuralIntegrity": round(res.structuralIntegrity, 1),
         "floodSubmersion": round(res.floodSubmersion, 1),
         "floodedAreaSqKm": round(res.floodedAreaSqKm, 3),
@@ -93,6 +105,31 @@ def _cnn_to_dict(res):
         "framesDecoded": res.framesDecoded,
         "satellitePasses": res.satellitePasses,
         "droneSorties": res.droneSorties,
+    }
+
+
+def _lstm_error(msg: str) -> dict:
+    return {
+        "error": msg,
+        "floodRiskScore": 0.0,
+        "dynamicWeight": 0.5,
+        "waterLevelPeak": None,
+        "riskLevel": "UNKNOWN",
+        "history": {
+            "time": [],
+            "precipitation": [],
+            "temperature_2m": [],
+            "waterLevel": [],
+        },
+        "forecast": {
+            "time": [],
+            "precipitation": [],
+            "temperature_2m": [],
+            "waterLevel": [],
+        },
+        "xai": [],
+        "model": "unavailable",
+        "trainedOnHours": 0,
     }
 
 
@@ -128,11 +165,34 @@ def _risk_label(score: float) -> str:
     return "LOW"
 
 
+def _fallback_report(lat: float, lng: float, city_name: str, err) -> dict:
+    """Full degraded report returned if the pipeline itself fails."""
+    return {
+        "lat": round(float(lat), 4),
+        "lng": round(float(lng), 4),
+        "city": city_name,
+        "fused": {
+            "riskScore": 0.0,
+            "riskLevel": "LOW",
+            "cnnWeight": 0.0,
+            "lstmWeight": 0.0,
+            "elapsedSec": 0.0,
+            "error": str(err),
+        },
+        "lstm": _lstm_error(str(err)),
+        "cnn": _cnn_error(str(err)),
+        "ga": _ga_error(str(err)),
+    }
+
+
 def fusion_analysis(lat: float, lng: float, city_name: str = "") -> dict:
     key = (round(lat, 4), round(lng, 4), city_name, int(time.time() // config.PIPELINE_CACHE_TTL))
     cached = _pipeline_cache.get(key)
     if cached:
         return cached
-    report = _analysis_report(lat, lng, city_name)
+    try:
+        report = _analysis_report(lat, lng, city_name)
+    except Exception as err:
+        report = _fallback_report(lat, lng, city_name, err)
     _pipeline_cache[key] = report
     return report

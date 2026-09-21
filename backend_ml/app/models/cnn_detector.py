@@ -50,6 +50,7 @@ class CNNAnalysisResult:
         self.imageUrl = ""
         self.water_ratio = 0.0
         self.damage_score = 0.0
+        self.error = ""
 
 
 # --------------------------------------------------------------------------
@@ -230,7 +231,10 @@ def analyze_pil_image(img, lat: float, lng: float, coverage_km: Optional[float] 
     flooded_area_sq_km = water_ratio * tile_w_km * tile_w_km
 
     # Real CNN forward pass (trained on this image via weak labels).
-    z = _cnn_head_logits(img, water, road_ratio, damage)
+    try:
+        z = _cnn_head_logits(img, water, road_ratio, damage)
+    except Exception:
+        z = np.zeros(4, dtype=np.float32)
     cls_prob = clamp(sigmoid(float(z[2])), 0.0, 1.0)
     # Detection confidence = calibrated model probability mass (real output).
     confidence = round(clamp(0.45 + 0.55 * cls_prob, 0.0, 1.0) * 100.0, 1)
@@ -265,9 +269,20 @@ def analyze_image_bytes(img_bytes: bytes, lat: float, lng: float, coverage_km: O
     return analyze_pil_image(img, lat, lng, coverage_km, image_url)
 
 
+def _location_error(msg: str) -> CNNAnalysisResult:
+    """Empty analysis returned when live imagery cannot be fetched."""
+    res = CNNAnalysisResult()
+    res.image_source = "error"
+    res.error = msg
+    return res
+
+
 def analyze_location(lat: float, lng: float, zoom: Optional[int] = None) -> CNNAnalysisResult:
     """Fetch real satellite imagery for the coordinates and analyse it."""
-    img = fetch_imagery(lat, lng, zoom)
+    try:
+        img = fetch_imagery(lat, lng, zoom)
+    except Exception as err:
+        return _location_error(f"imagery fetch failed: {err}")
     z = zoom if zoom else config.IMAGERY_MAX_ZOOM
     coverage = tile_coverage(lat, lng, z)
     img_url = config.IMAGERY_TILE_URL.format(

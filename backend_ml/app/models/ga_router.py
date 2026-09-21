@@ -291,6 +291,34 @@ class EvacuationOptimizer:
         }
 
 
+def _optimization_error(msg: str) -> dict:
+    """Degraded GA plan returned when the evolutionary loop cannot run."""
+    return {
+        "error": msg,
+        "routes": [],
+        "population": 0,
+        "evacuated": 0,
+        "arrivals": 0,
+        "responseUnits": 0,
+        "shelters": 0,
+        "avgEta": 0,
+        "generation": 0,
+        "bestFitness": 0.0,
+        "chromosomePool": 0,
+        "selection": "unavailable",
+        "crossover": 0.0,
+        "mutationRate": 0.0,
+        "elitism": False,
+        "constraints": {
+            "blockedRoadNodes": [],
+            "blockedRoadRatio": 0.0,
+            "floodRiskScore": 0.0,
+            "dynamicWeight": 0.5,
+        },
+        "evolution": {"generationsRun": 0, "population": 0, "elitism": 0, "tournament_k": 0},
+    }
+
+
 def optimize_routes(
     lat: float,
     lng: float,
@@ -299,6 +327,13 @@ def optimize_routes(
     size_km: float = 5.0,
     seed: int = 42,
 ) -> dict:
-    """Full GA pipeline: build graph -> evolve -> return routed plan."""
-    graph = GAGraph(lat, lng, blocked_nodes or [], dynamic_weight if dynamic_weight is not None else 0.5, size_km=size_km)
-    return EvacuationOptimizer(graph).optimize(seed)
+    """Full GA pipeline: build graph -> evolve -> return routed plan.
+
+    The heavy evolutionary loop is wrapped so a compute failure degrades to
+    a documented empty plan instead of crashing the request with a 500/502.
+    """
+    try:
+        graph = GAGraph(lat, lng, blocked_nodes or [], dynamic_weight if dynamic_weight is not None else 0.5, size_km=size_km)
+        return EvacuationOptimizer(graph).optimize(seed)
+    except Exception as err:
+        return _optimization_error(str(err))

@@ -7,11 +7,12 @@
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-
 # ---- Model / weight storage -------------------------------------------
-MODEL_DIR = Path(os.getenv("MH_MODEL_DIR", BASE_DIR / "model_store"))
-BLOB_CACHE_DIR = Path(os.getenv("MH_BLOB_CACHE_DIR", BASE_DIR / "blob_cache"))
+# Absolute paths anchored on the backend_ml/ base directory so they never
+# depend on the CWD (Render workers can start from any directory).
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = Path(os.getenv("MH_MODEL_DIR", str(BASE_DIR / "model_store"))).resolve()
+BLOB_CACHE_DIR = Path(os.getenv("MH_BLOB_CACHE_DIR", str(BASE_DIR / "blob_cache"))).resolve()
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 BLOB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 

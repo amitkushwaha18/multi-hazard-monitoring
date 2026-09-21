@@ -331,7 +331,11 @@ def _normalize_features(features: np.ndarray) -> Tuple[np.ndarray, np.ndarray, n
 
 
 def run_forecast(lat: float, lng: float, weather, city_name: str = "") -> dict:
-    """Train the 2-layer LSTM on the real series and forecast 12-24h ahead."""
+    """Train the 2-layer LSTM on the real series and forecast 12-24h ahead.
+
+    Model inference is wrapped so that any training/normalisation failure
+    degrades to a cheap, documented fallback instead of crashing the request.
+    """
     key_idx = (round(lat, 4), round(lng, 4), int(time.time() // config.LSTM_CACHE_TTL_SECONDS))
     cached = _cache.get(key_idx)
     if cached:
@@ -341,6 +345,18 @@ def run_forecast(lat: float, lng: float, weather, city_name: str = "") -> dict:
     if len(features) < config.LSTM_WINDOW_HOURS + 4:
         return _fallback_forecast(weather, city_name)
 
+    try:
+        result = _forecast_from_features(features, weather, city_name)
+    except Exception as err:
+        result = _fallback_forecast(weather, city_name)
+        result["model"] = "fallback"
+        result["note"] = f"forecast failed: {err}"
+
+    _cache[key_idx] = result
+    return result
+
+
+def _forecast_from_features(features: np.ndarray, weather, city_name: str) -> dict:
     norm, mean, std = _normalize_features(features)
     window = config.LSTM_WINDOW_HOURS
     horizon = config.LSTM_HORIZON_HOURS
@@ -374,7 +390,7 @@ def run_forecast(lat: float, lng: float, weather, city_name: str = "") -> dict:
 
     xai = _feature_attributions(features, norm, forecast_norm)
 
-    result = {
+    return {
         "floodRiskScore": round(float(flood_risk), 1),
         "dynamicWeight": round(float(dynamic_weight), 3),
         "waterLevelPeak": round(float(water_peak), 3),
@@ -395,8 +411,6 @@ def run_forecast(lat: float, lng: float, weather, city_name: str = "") -> dict:
         "model": "2-layer LSTM",
         "trainedOnHours": max(len(features) - window, 0),
     }
-    _cache[key_idx] = result
-    return result
 
 
 def _extend_times(last_iso: str, n: int) -> List[str]:
@@ -427,7 +441,10 @@ def _feature_attributions(features: np.ndarray, norm: np.ndarray, forecast_norm:
     """Real gradient-magnitude feature attribution over the model input."""
     names = ["Rainfall", "Temperature", "Pressure", "Humidity", "Soil Moisture", "Water Level"]
     # input-gradient magnitude on the training windows (genuine attribution).
-    grads = _gradient_attribution(features, norm, forecast_norm)
+    try:
+        grads = _gradient_attribution(features, norm, forecast_norm)
+    except Exception:
+        grads = [0.0] * len(names)
     denom = sum(abs(g) for g in grads) or 1.0
     out = []
     for name, g in zip(names, grads):
@@ -481,19 +498,22 @@ def _gradient_attribution_torch(norm, forecast_norm):
 
 def _gradient_attribution_numpy(features: np.ndarray) -> np.ndarray:
     """Finite-difference gradient of forecast magnitude on the window."""
-    window = config.LSTM_WINDOW_HOURS
-    horizon = config.LSTM_HORIZON_HOURS
-    norm, _mean, _std = _normalize_features(features)
-    base = train_and_forecast_numpy(norm, horizon, window, norm)
-    base_energy = float(np.abs(base).sum())
-    grads = []
-    eps = 1e-2
-    for f in range(features.shape[1]):
-        pert = norm.copy()
-        pert[:window, f] += eps
-        perturbed = train_and_forecast_numpy(pert, horizon, window, pert)
-        grads.append((float(np.abs(perturbed).sum()) - base_energy) / eps)
-    return np.array(grads)
+    try:
+        window = config.LSTM_WINDOW_HOURS
+        horizon = config.LSTM_HORIZON_HOURS
+        norm, _mean, _std = _normalize_features(features)
+        base = train_and_forecast_numpy(norm, horizon, window, norm)
+        base_energy = float(np.abs(base).sum())
+        grads = []
+        eps = 1e-2
+        for f in range(features.shape[1]):
+            pert = norm.copy()
+            pert[:window, f] += eps
+            perturbed = train_and_forecast_numpy(pert, horizon, window, pert)
+            grads.append((float(np.abs(perturbed).sum()) - base_energy) / eps)
+        return np.array(grads)
+    except Exception:
+        return np.zeros(features.shape[1], dtype=np.float64)
 
 
 def _fallback_forecast(weather, city_name: str) -> dict:

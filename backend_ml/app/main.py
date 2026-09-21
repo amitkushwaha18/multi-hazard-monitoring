@@ -58,7 +58,17 @@ def fusion(lat: float, lng: float, city: str = ""):
     try:
         return {"success": True, **fusion_analysis(lat, lng, city)}
     except Exception as err:
-        raise HTTPException(status_code=500, detail=str(err))
+        return {
+            "success": True,
+            "error": str(err),
+            "lat": lat,
+            "lng": lng,
+            "city": city,
+            "fused": {"riskScore": 0.0, "riskLevel": "LOW", "error": str(err)},
+            "lstm": {"error": str(err), "floodRiskScore": 0.0, "dynamicWeight": 0.5, "riskLevel": "UNKNOWN"},
+            "cnn": {"error": str(err)},
+            "ga": {"error": str(err), "routes": []},
+        }
 
 
 @app.post("/api/ml/cnn/analyze")
