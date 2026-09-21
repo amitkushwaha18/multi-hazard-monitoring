@@ -44,7 +44,7 @@ const TEAM_MEMBERS = [
   { 
     name: 'Samarth Kumar', 
     role: 'AI/ML & CNN+LSTM+GA Forecaster', 
-    desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 12-hour time-series weather forecasting (trained on 24-hour historical data), and Genetic Algorithms for dynamic emergency evacuation routing.', 
+    desc: 'Engineered the core hybrid machine learning suite, integrating CNNs for satellite damage assessment, LSTMs for 24-hour time-series weather forecasting (trained on 24-hour historical data), and Genetic Algorithms for dynamic emergency evacuation routing.', 
     photo: '/images/samarth.jpg' 
   },
   { 
@@ -713,7 +713,7 @@ const LandingPage = ({ onNavigate }) => {
             <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>critical structures (Dams & Bridges) monitored</div>
           </div>
           <div className="card-3d" style={{ background: 'rgba(1, 3, 8, 0.95)', padding: '16px', borderRadius: '12px', border: `1px solid ${COLORS.border}` }}>
-            <div style={{ fontSize: '26px', fontWeight: 'bold', color: COLORS.warning }}>12h</div>
+            <div style={{ fontSize: '26px', fontWeight: 'bold', color: COLORS.warning }}>24h</div>
             <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>LSTM neural forecasting horizon</div>
           </div>
           <div className="card-3d" style={{ background: 'rgba(1, 3, 8, 0.95)', padding: '16px', borderRadius: '12px', border: `1px solid ${COLORS.border}` }}>
@@ -880,7 +880,7 @@ const LandingPage = ({ onNavigate }) => {
             },
             { 
               title: '📈 LSTM (Long Short-Term Memory) - Temporal Forecasting', 
-              desc: 'Analyzes 24-hour historical time-series weather and seismic data to accurately predict temperature, rainfall, and wind speed trends 12 hours ahead.', 
+              desc: 'Analyzes 24-hour historical time-series weather and seismic data to accurately predict temperature, rainfall, and wind speed trends 24 hours ahead.', 
               color: COLORS.warning 
             },
             { 
