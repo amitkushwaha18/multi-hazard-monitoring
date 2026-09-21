@@ -1,26 +1,39 @@
 import React, { useState } from 'react';
+import axios from 'axios';
+import { mlUrl } from '../config';
 
 const CVDamageDetectionPanel = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [detectionResult, setDetectionResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setSelectedImage(URL.createObjectURL(file));
-      setIsAnalyzing(true);
-      setDetectionResult(null);
+    if (!file) return;
 
-      setTimeout(() => {
-        setIsAnalyzing(false);
-        setDetectionResult({
-          structuralIntegrity: '0%',
-          damageClass: 'No Analysis (0)',
-          confidenceScore: '0%',
-          impactedAreaSqM: '0 m²'
-        });
-      }, 1000);
+    setSelectedImage(URL.createObjectURL(file));
+    setIsAnalyzing(true);
+    setDetectionResult(null);
+    setErrorMsg(null);
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await axios.post(mlUrl('/api/ml/cnn/analyze'), form, { timeout: 90000 });
+      const d = res.data;
+      setDetectionResult({
+        structuralIntegrity: `${d?.structuralIntegrity ?? 0}%`,
+        damageClass: d?.damageClass || '—',
+        confidenceScore: `${d?.detectionConfidence ?? 0}%`,
+        impactedAreaSqM: d?.floodSubmersion !== undefined
+          ? `${(d.floodSubmersion).toFixed(1)}% submerged`
+          : '—'
+      });
+    } catch (err) {
+      setErrorMsg(`Analysis failed: ${err?.message || 'ML service unreachable'}`);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -54,6 +67,12 @@ const CVDamageDetectionPanel = () => {
         {isAnalyzing && (
           <p style={{ color: '#38bdf8', fontSize: '14px', fontWeight: 'bold' }}>
             ⏳ Processing Aerial/Satellite Image through AI Model...
+          </p>
+        )}
+
+        {errorMsg && (
+          <p style={{ color: '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>
+            ⚠️ {errorMsg}
           </p>
         )}
 

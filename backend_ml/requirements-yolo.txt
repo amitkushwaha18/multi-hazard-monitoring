@@ -1,0 +1,7 @@
+# Optional YOLOv8 object-detection engine (heavyinstall + model download).
+# Install only when GPU/disk availability permits:
+#   pip install -r requirements-yolo.txt
+#
+# When installed, the CNN pipeline upgrades pure segmentation
+# damage metrics with YOLO detections (buildings, vehicles, water).
+ultralytics>=8.2.0

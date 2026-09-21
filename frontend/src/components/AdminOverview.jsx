@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, withRetry } from '../config';
+import { API_BASE_URL, ML_API_BASE_URL, withRetry } from '../config';
 
 // Import all AI & Analytical modules
 import HazardSearchPanel from './HazardSearchPanel';
@@ -23,6 +23,8 @@ const AdminOverview = ({ user, onLogout }) => {
   const [activeModal, setActiveModal] = useState(null);
   const [externalRequest, setExternalRequest] = useState(null);
   const [voiceResult, setVoiceResult] = useState(null);
+  const [mlAnalysis, setMlAnalysis] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
   const pendingSeqRef = useRef(null);
 
   // Real-time Admin Monitoring & User Management States
@@ -140,6 +142,41 @@ const AdminOverview = ({ user, onLogout }) => {
       setTriggeringScan(false);
     }
   };
+
+  // Live Hybrid-AI fusion (CNN + LSTM + GA) for the selected location.
+  const locLat = selectedLocation?.lat;
+  const locLng = selectedLocation?.lng;
+  const locCity = selectedLocation?.cityName;
+  useEffect(() => {
+    if (!locLat || !locLng) {
+      setMlAnalysis(null);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setMlLoading(true);
+      try {
+        const res = await withRetry(
+          () => axios.get(`${ML_API_BASE_URL}/api/ml/fusion`, {
+            params: { lat: locLat, lng: locLng, city: locCity || '' },
+            timeout: 90000
+          }),
+          2,
+          2000
+        );
+        if (!cancelled && res?.data?.success) {
+          setMlAnalysis(res.data);
+        }
+      } catch (err) {
+        console.warn('ML fusion unavailable:', err.message);
+        if (!cancelled) setMlAnalysis(null);
+      } finally {
+        if (!cancelled) setMlLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [locLat, locLng, locCity]);
 
   return (
     <div style={{ 
@@ -263,18 +300,18 @@ const AdminOverview = ({ user, onLogout }) => {
 
         {/* Multi-Hazard Analytical Fusion & AI Risk Prediction */}
         <div className="grid-responsive-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
-          <MultiHazardFusionEngine selectedLocation={selectedLocation} />
-          <AIRiskPredictionPanel selectedLocation={selectedLocation} />
+          <MultiHazardFusionEngine selectedLocation={selectedLocation} ml={mlAnalysis} seismicEvents={seismicEvents} mlLoading={mlLoading} />
+          <AIRiskPredictionPanel selectedLocation={selectedLocation} ml={mlAnalysis} />
         </div>
 
         {/* Time Series Analytics Chart */}
         <div style={{ marginTop: '24px' }}>
-          <TimeSeriesChart locationName={selectedLocation?.cityName} telemetry={selectedLocation?.telemetry} />
+          <TimeSeriesChart locationName={selectedLocation?.cityName} telemetry={selectedLocation?.telemetry} ml={mlAnalysis?.lstm} mlLoading={mlLoading} />
         </div>
 
         {/* Digital Twin View & Computer Vision Damage Detection */}
         <div className="grid-responsive-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
-          <DigitalTwinViewPanel selectedLocation={selectedLocation} />
+          <DigitalTwinViewPanel selectedLocation={selectedLocation} ml={mlAnalysis} seismicEvents={seismicEvents} />
           <CVDamageDetectionPanel />
         </div>
 
@@ -289,7 +326,7 @@ const AdminOverview = ({ user, onLogout }) => {
 
         {/* Explainable AI Decision Breakdown */}
         <div style={{ marginTop: '24px' }}>
-          <ExplainableAIPanel />
+          <ExplainableAIPanel ml={mlAnalysis} mlLoading={mlLoading} />
         </div>
 
         {/* SECTION: REGISTERED USERS MANAGEMENT LIST */}

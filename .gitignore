@@ -12,3 +12,16 @@ frontend/.env
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python / ML backend runtime artifacts
+__pycache__/
+*.py[cod]
+backend_ml/model_store/
+backend_ml/blob_cache/
+.venv/
+venv/
+*.pth
+*.pt
+
+# Env for the ML service
+backend_ml/.env

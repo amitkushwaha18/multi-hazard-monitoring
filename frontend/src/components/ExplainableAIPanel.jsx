@@ -1,6 +1,11 @@
 import React from 'react';
 
-const ExplainableAIPanel = () => {
+const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+const ExplainableAIPanel = ({ ml, mlLoading }) => {
+  const xai = ml?.lstm?.xai || [];
+  const contributions = xai.slice(0, 3);
+
   return (
     <div style={{
       background: '#0f172a',
@@ -22,40 +27,34 @@ const ExplainableAIPanel = () => {
 
       <div style={{ background: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b' }}>
         <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#cbd5e1' }}>
-          Top factors influencing the current multi-hazard prediction score:
+          {mlLoading
+            ? 'Computing real LSTM input-gradient attributions on live telemetry…'
+            : contributions.length > 0
+              ? 'Top factors influencing the current LSTM flood-risk prediction (genuine input gradients):'
+              : 'Select a location to compute real feature attributions from the LSTM forecaster.'}
         </p>
 
         {/* Feature Bars */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-              <span>Surface Temperature Anomalies</span>
-              <span style={{ color: '#ef4444', fontWeight: 'bold' }}>+42% Impact</span>
+          {contributions.length === 0 ? (
+            <div style={{ fontSize: '12px', color: '#64748b', padding: '8px 0' }}>
+              No attribution data yet — the feature contributions are derived from the trained network's gradients on live telemetry.
             </div>
-            <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px' }}>
-              <div style={{ width: '85%', height: '100%', background: '#ef4444', borderRadius: '3px' }}></div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-              <span>Historical Seismic Fault Proximity</span>
-              <span style={{ color: '#eab308', fontWeight: 'bold' }}>+28% Impact</span>
-            </div>
-            <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px' }}>
-              <div style={{ width: '56%', height: '100%', background: '#eab308', borderRadius: '3px' }}></div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-              <span>Urban Density & Drainage Index</span>
-              <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>+15% Impact</span>
-            </div>
-            <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px' }}>
-              <div style={{ width: '30%', height: '100%', background: '#38bdf8', borderRadius: '3px' }}></div>
-            </div>
-          </div>
+          ) : contributions.map((item) => {
+            const pct = clamp(item.contribution || 0, 0, 100);
+            const color = item.sign >= 0 ? '#ef4444' : '#38bdf8';
+            return (
+              <div key={item.feature}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span>{item.feature}</span>
+                  <span style={{ color, fontWeight: 'bold' }}>{item.sign >= 0 ? '+' : ''}{pct.toFixed(0)}% Impact</span>
+                </div>
+                <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px' }}></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

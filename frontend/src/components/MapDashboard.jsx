@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, LayersControl, Circle, useMap }
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
-import { API_BASE_URL, withRetry } from '../config';
+import { API_BASE_URL, ML_API_BASE_URL, withRetry } from '../config';
 
 // Import sub-components
 import HazardSearchPanel from './HazardSearchPanel';
@@ -69,6 +69,8 @@ const MapDashboard = ({ user, onLogout }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [backendOnline, setBackendOnline] = useState(null);
+  const [mlAnalysis, setMlAnalysis] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
   const selectedLocationRef = useRef(null);
   const pendingVoiceSeqRef = useRef(null);
 
@@ -163,6 +165,42 @@ const MapDashboard = ({ user, onLogout }) => {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  // Fetch the fused Hybrid-AI analysis (CNN + LSTM + GA) whenever the
+  // selected location changes. Results are cached server-side (300s).
+  const locLat = selectedLocation?.lat;
+  const locLng = selectedLocation?.lng;
+  const locCity = selectedLocation?.cityName;
+  useEffect(() => {
+    if (!locLat || !locLng) {
+      setMlAnalysis(null);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setMlLoading(true);
+      try {
+        const res = await withRetry(
+          () => axios.get(`${ML_API_BASE_URL}/api/ml/fusion`, {
+            params: { lat: locLat, lng: locLng, city: locCity || '' },
+            timeout: 90000
+          }),
+          2,
+          2000
+        );
+        if (!cancelled && res?.data?.success) {
+          setMlAnalysis(res.data);
+        }
+      } catch (err) {
+        console.warn('ML fusion unavailable:', err.message);
+        if (!cancelled) setMlAnalysis(null);
+      } finally {
+        if (!cancelled) setMlLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [locLat, locLng, locCity]);
 
   // Close the profile menu when clicking elsewhere.
   useEffect(() => {
@@ -476,8 +514,25 @@ const MapDashboard = ({ user, onLogout }) => {
             overflow: 'hidden'
           }}>
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(700px 120px at 50% 0%, rgba(56,189,248,0.15), transparent 70%)', pointerEvents: 'none' }} />
+            <span style={{
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '10px',
+              fontWeight: '800',
+              letterSpacing: '0.14em',
+              color: '#a855f7',
+              background: 'rgba(168,85,247,0.12)',
+              border: '1px solid rgba(168,85,247,0.45)',
+              borderRadius: '999px',
+              padding: '4px 12px',
+              boxShadow: '0 0 18px rgba(168,85,247,0.35)'
+            }}>
+              🔮 FUTURE ML PREDICTIONS (24H+)
+            </span>
             <h2 style={{
-              margin: 0,
+              margin: '10px 0 0',
               fontSize: 'clamp(20px, 3vw, 30px)',
               fontWeight: '800',
               letterSpacing: '0.02em',
@@ -489,27 +544,45 @@ const MapDashboard = ({ user, onLogout }) => {
               ⚡ TRIPLE-ENGINE HYBRID AI SUITE (CNN + LSTM + GA)
             </h2>
             <p style={{ margin: '6px 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
-              {selectedLocation
-                ? `🛩️ Live hybrid inference active for ${selectedLocation.cityName} — computer vision, telemetry forecasting & genetic routing fused in real time.`
-                : '🔍 Select a location to fuse satellite vision, time-series prediction and evacuation routing.'}
+              {mlLoading
+                ? `🛩️ Running live Hybrid-AI inference for ${selectedLocation.cityName} — CNN vision, LSTM forecasting & GA routing…`
+                : mlAnalysis
+                  ? `🛩️ Predictive inference active for ${selectedLocation.cityName} — forecast risk ${mlAnalysis.fused?.riskScore ?? '—'} (${mlAnalysis.fused?.riskLevel ?? '—'}) from ${mlAnalysis.lstm?.model ?? 'LSTM'} 24h forecast + CNN + GA.`
+                  : '🔍 Select a location to fuse satellite vision, 24h time-series prediction and evacuation routing. (Live present-time status is shown in the cards above.)'}
             </p>
           </div>
 
-          {/* Hybrid AI Panel Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '18px', marginBottom: '24px', alignItems: 'stretch' }}>
+          {/* Hybrid AI Panel Stack — full-width vertical 1-column layout (CNN → LSTM → GA) */}
+          <div
+            className="flex flex-col gap-6 w-full"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+              width: '100%',
+              marginBottom: '24px',
+              alignItems: 'stretch'
+            }}
+          >
             <CNNAerialAnalysisPanel
               locationName={selectedLocation?.cityName}
               risk={selectedLocation?.risk}
+              ml={mlAnalysis?.cnn}
+              mlLoading={mlLoading}
             />
             <TimeSeriesChart
               locationName={selectedLocation?.cityName}
               baseTemp={selectedLocation?.risk?.temperatureC}
               baseRain={selectedLocation?.risk?.precipitationMm}
               telemetry={selectedLocation?.telemetry}
+              ml={mlAnalysis?.lstm}
+              mlLoading={mlLoading}
             />
             <GAEvacuationRouter
               locationName={selectedLocation?.cityName}
               risk={selectedLocation?.risk}
+              ml={mlAnalysis?.ga}
+              mlLoading={mlLoading}
             />
           </div>
 

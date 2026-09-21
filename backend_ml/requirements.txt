@@ -1,0 +1,25 @@
+# ============================================================
+# Multi-Hazard Monitoring - Real ML Backend (FastAPI)
+# Core runtime dependencies.
+#
+# Optional heavy extras (YOLOv8 detection from ultralytics,
+# full GPU builds) are listed in requirements-yolo.txt and are
+# auto-detected at runtime if present.
+# ============================================================
+
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+python-multipart>=0.0.9
+numpy>=1.26.0
+opencv-python-headless>=4.9.0
+Pillow>=10.3.0
+requests>=2.32.0
+
+# Deep learning engines. torch (CPU wheel) powers the real
+# LSTM forecaster + CNN vision backbone. When torch is not
+# installed the service transparently falls back to native
+# NumPy implementations of the same CNN / LSTM architectures so
+# the API remains test-ready offline.
+torch>=2.2.0
+torchvision>=0.17.0

@@ -33,6 +33,21 @@ export const API_BASE_URL = trimSlash(
 // cold starts, which can take tens of seconds on first hit after idle.
 export const DEFAULT_TIMEOUT = 60000;
 
+// ML backend base URL (FastAPI Hybrid-AI pipeline). Resolves from runtime/env
+// with a localhost default for development; override via REACT_APP_ML_API_URL.
+export const ML_API_BASE_URL = trimSlash(
+  readEnv('REACT_APP_ML_API_URL') ||
+    readEnv('ML_API_URL') ||
+    'http://localhost:8000'
+);
+
+// Build an absolute URL against the ML (FastAPI) backend.
+export const mlUrl = (path) => {
+  const p = String(path || '');
+  if (/^https?:\/\//.test(p)) return p;
+  return `${ML_API_BASE_URL}${p.startsWith('/') ? p : `/${p}`}`;
+};
+
 // Google OAuth Client ID (Explicitly set to ensure Official Google OAuth Popup loads).
 export const GOOGLE_CLIENT_ID =
   readEnv('REACT_APP_GOOGLE_CLIENT_ID') ||

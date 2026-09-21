@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function AIRiskPredictionPanel({ selectedLocation }) {
+function AIRiskPredictionPanel({ selectedLocation, ml }) {
   const [hazardType, setHazardType] = useState('Flood');
 
   const parsePercent = (str) => {
@@ -26,6 +26,12 @@ function AIRiskPredictionPanel({ selectedLocation }) {
       if (pct !== null) return pct;
       const wind = Number(risk.windSpeedKmh) || 0;
       return Math.min(100, Math.round((wind / 55) * 100));
+    }
+
+    // Flood: prefer the real ML LSTM/fused risk score when available.
+    const mlFlood = ml?.fused?.riskScore ?? ml?.lstm?.floodRiskScore;
+    if (mlFlood != null) {
+      return Math.min(100, Math.max(0, Math.round(Number(mlFlood))));
     }
 
     const pct = parsePercent(risk.floodRisk);
