@@ -200,9 +200,24 @@ def torch_no_grad():
     return _torch().no_grad()
 
 
+def _analytic_cnn_logits(water: np.ndarray, road_ratio: float, damage: float) -> np.ndarray:
+    """Pre-calculated lightweight head logits for constrained hosts.
+
+    Derived deterministically from the real computer-vision measurements
+    (water ratio, road-block ratio, structural damage) with no deep-learning
+    training, so peak RAM stays flat even without PyTorch/NumPy gradients.
+    """
+    return np.array(
+        [float(damage) / 100.0, float(water.mean()), float(road_ratio), 0.0],
+        dtype=np.float32,
+    )
+
+
 def _cnn_head_logits(img, water: np.ndarray, road_ratio: float, damage: float) -> np.ndarray:
     """Run the real CNN (torch preferred, NumPy fallback) and return the
     trained head logits for the analysed image."""
+    if config.LOW_MEMORY_MODE:
+        return _analytic_cnn_logits(water, road_ratio, damage)
     try:
         return _torch_cnn_forward(img, water, None, damage, road_ratio)
     except Exception:

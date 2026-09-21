@@ -296,8 +296,9 @@ def train_and_forecast_numpy(
     model = NumpyLSTM(features.shape[1], config.LSTM_HIDDEN)
     xs = [features[i - window: i] for i in range(window, len(features))]
     ttg = [features[i] for i in range(window, len(features))]
+    epochs = config.LOW_MEMORY_LSTM_EPOCHS if config.LOW_MEMORY_MODE else 6
     if xs:
-        model.train(np.array(xs), np.array(ttg), epochs=6, lr=1e-3)
+        model.train(np.array(xs), np.array(ttg), epochs=epochs, lr=1e-3)
     return model.predict(seed_seq, horizon)
 
 
@@ -361,10 +362,13 @@ def _forecast_from_features(features: np.ndarray, weather, city_name: str) -> di
     window = config.LSTM_WINDOW_HOURS
     horizon = config.LSTM_HORIZON_HOURS
 
-    try:
-        forecast_norm = train_and_forecast_torch(norm, horizon, window, norm)
-    except Exception:
+    if config.LOW_MEMORY_MODE:
         forecast_norm = train_and_forecast_numpy(norm, horizon, window, norm)
+    else:
+        try:
+            forecast_norm = train_and_forecast_torch(norm, horizon, window, norm)
+        except Exception:
+            forecast_norm = train_and_forecast_numpy(norm, horizon, window, norm)
 
     forecast = mean.reshape(1, -1) + forecast_norm * std.reshape(1, -1)
     history_times = weather.time[window:]
@@ -456,6 +460,10 @@ def _feature_attributions(features: np.ndarray, norm: np.ndarray, forecast_norm:
 
 def _gradient_attribution(features: np.ndarray, norm: np.ndarray, forecast_norm: np.ndarray) -> np.ndarray:
     """Numerical gradient of the forecast energy w.r.t. each input feature."""
+    if config.LOW_MEMORY_MODE:
+        # Skip the attribution retraining runs entirely under 512MB - the
+        # XAI is cosmetic and would otherwise train up to 6 extra models.
+        return np.zeros(features.shape[1], dtype=np.float64)
     try:
         return _gradient_attribution_torch(norm, forecast_norm)
     except Exception:

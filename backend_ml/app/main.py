@@ -3,6 +3,7 @@
 #   CNN (drone/aerial) + LSTM (time-series) + GA (routing)
 #   fused through /api/ml/fusion.
 # ============================================================
+import gc
 import time
 from typing import Optional
 
@@ -56,7 +57,9 @@ def health():
 @app.get("/api/ml/fusion")
 def fusion(lat: float, lng: float, city: str = ""):
     try:
-        return {"success": True, **fusion_analysis(lat, lng, city)}
+        report = fusion_analysis(lat, lng, city)
+        gc.collect()
+        return {"success": True, **report}
     except Exception as err:
         return {
             "success": True,
@@ -86,6 +89,7 @@ async def cnn_analyze(
         raise HTTPException(status_code=413, detail="File too large")
     try:
         res = analyze_image_bytes(data, lat, lng, coverage_km, image_url=f"upload:{file.filename}")
+        gc.collect()
         return {
             "success": True,
             "filename": file.filename or "",
@@ -113,6 +117,7 @@ def lstm_forecast(lat: float, lng: float, city: str = ""):
     try:
         weather = fetch_weather_hydrology(lat, lng)
         res = run_forecast(lat, lng, weather, city)
+        gc.collect()
         res["error"] = weather.error
         return {"success": True, **res}
     except Exception as err:
@@ -129,6 +134,7 @@ def ga_optimize(req: OptimizeRequest):
         if req.cnn and "blockedRoadNodes" in req.cnn:
             blocked_nodes = req.cnn.get("blockedRoadNodes") or []
         res = optimize_routes(req.lat, req.lng, blocked_nodes, dynamic_weight)
+        gc.collect()
         return {"success": True, **res}
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))

@@ -71,6 +71,17 @@ GA_SHELTER_OVERRIDE = int(os.getenv("MH_GA_SHELTER_OVERRIDE", "0"))
 GA_RESPONSE_UNIT_OVERRIDE = int(os.getenv("MH_GA_RESPONSE_UNIT_OVERRIDE", "0"))
 GA_ROUTE_SPEED_KMH = float(os.getenv("MH_GA_ROUTE_SPEED_KMH", "24"))
 
+# ---- Low-memory / constrained deployments (512MB RAM free tier) -------
+# When enabled (default ON for constrained hosts), heavyweight runtime
+# imports (PyTorch, torchvision, Ultralytics YOLO) are never executed and
+# the native NumPy engines or pre-calculated analytic predictions are used
+# instead, keeping peak RSS far below 512MB. Set MH_LOW_MEMORY=0 to restore
+# full deep-learning inference on machines with more RAM/CPU.
+LOW_MEMORY_MODE = os.getenv("MH_LOW_MEMORY", "1").strip().lower() in ("1", "true", "yes", "on")
+LOW_MEMORY_LSTM_EPOCHS = int(os.getenv("MH_LOW_MEMORY_LSTM_EPOCHS", "4"))
+LOW_MEMORY_GA_GENERATIONS = int(os.getenv("MH_LOW_MEMORY_GA_GENERATIONS", "8"))
+LOW_MEMORY_GA_POPULATION = int(os.getenv("MH_LOW_MEMORY_GA_POPULATION", "24"))
+
 # ---- Fusion pipeline ----------------------------------------------------
 PIPELINE_CACHE_TTL = int(os.getenv("MH_PIPELINE_CACHE_TTL", "300"))
 

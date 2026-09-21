@@ -12,6 +12,7 @@
 #
 # Each subsystem is real and computed live; nothing is mocked.
 # ============================================================
+import gc
 import time
 from typing import Dict, Optional
 
@@ -85,6 +86,7 @@ def _analysis_report(lat: float, lng: float, city_name: str = "") -> dict:
         "cnn": cnn,
         "ga": ga,
     }
+    gc.collect()
     return report
 
 
@@ -195,4 +197,5 @@ def fusion_analysis(lat: float, lng: float, city_name: str = "") -> dict:
     except Exception as err:
         report = _fallback_report(lat, lng, city_name, err)
     _pipeline_cache[key] = report
+    gc.collect()
     return report

@@ -8,6 +8,10 @@ from app import config
 
 
 def torch_is_available() -> bool:
+    if config.LOW_MEMORY_MODE:
+        # Never import torch under 512MB constraints - the import alone
+        # can push RSS over the limit before any inference even runs.
+        return False
     try:
         import torch  # noqa: F401
         return True
@@ -16,6 +20,9 @@ def torch_is_available() -> bool:
 
 
 def yolo_is_available() -> bool:
+    if config.LOW_MEMORY_MODE:
+        # ultralytics pulls in torch + downloads weights; skip entirely.
+        return False
     try:
         from ultralytics import YOLO  # noqa: F401
         return True
@@ -24,6 +31,8 @@ def yolo_is_available() -> bool:
 
 
 def resolve_engine() -> str:
+    if config.LOW_MEMORY_MODE:
+        return "numpy"
     mode = config.INFERENCE_ENGINE
     if mode == "torch":
         if not torch_is_available():

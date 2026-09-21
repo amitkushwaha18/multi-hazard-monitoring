@@ -124,8 +124,14 @@ class EvacuationOptimizer:
     def __init__(self, graph: GAGraph):
         self.graph = graph
         pop_size = config.GA_POPULATION
-        self.pop_size = max(20, pop_size)
-        self.generations = max(4, config.GA_GENERATIONS)
+        if config.LOW_MEMORY_MODE:
+            # Shrink the evolutionary budget under 512MB RAM so the loop
+            # finishes quickly with minimal allocation churn.
+            self.pop_size = max(20, min(pop_size, config.LOW_MEMORY_GA_POPULATION))
+            self.generations = max(4, min(config.GA_GENERATIONS, config.LOW_MEMORY_GA_GENERATIONS))
+        else:
+            self.pop_size = max(20, pop_size)
+            self.generations = max(4, config.GA_GENERATIONS)
         self.elitism = max(1, config.GA_ELITISM)
         self.crossover = config.GA_CROSSOVER_RATE
         self.mutation = config.GA_MUTATION_RATE
