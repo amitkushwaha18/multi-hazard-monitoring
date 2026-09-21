@@ -33,6 +33,11 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def read_root():
+    return {"status": "online", "service": "Multi-Hazard ML Engine", "version": "1.0.0"}
+
+
 @app.get("/api/ml/health", response_model=HealthResponse)
 def health():
     return HealthResponse(
