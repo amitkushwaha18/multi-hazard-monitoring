@@ -480,7 +480,7 @@ const LandingPage = ({ onNavigate }) => {
           boxShadow: '0 4px 30px rgba(0,0,0,0.95)'
         }}>
           <div className="lp-nav-brand" onClick={() => scrollToSection('home')} style={{ fontSize: '18px', fontWeight: 'bold', color: COLORS.sky, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', textShadow: '0 0 15px rgba(56,189,248,0.6)' }}>
-            🛡️ MultiHazard AI
+            🛡️ AAPDA PRAHARI
           </div>
           <div className="lp-nav-links" style={{ display: 'flex', gap: '28px', fontSize: '14px', color: COLORS.textMuted, fontWeight: 500, flexWrap: 'wrap' }}>
             {NAV_ITEMS.map((item) => (
@@ -733,11 +733,11 @@ const LandingPage = ({ onNavigate }) => {
           boxShadow: '0 25px 70px rgba(0,0,0,0.95)'
         }}>
           <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '20px', borderBottom: `2px solid ${COLORS.sky}`, paddingBottom: '12px' }}>
-            About MultiHazard AI & Core Hazard Pillars
+            About AAPDA PRAHARI & Core Hazard Pillars
           </h2>
           
           <p style={{ color: COLORS.textSoft, fontSize: '16px', lineHeight: 1.8, marginBottom: '24px' }}>
-            <strong>MultiHazard AI</strong> is a next-generation civil infrastructure resilience and disaster mitigation platform. In an era marked by escalating climate anomalies and unpredictable seismic movements, traditional disaster management systems often suffer from delayed reporting, fragmented data sources, and a lack of proactive forecasting. Our platform bridges this critical gap by fusing real-time satellite telemetry, global seismic feeds, and deep-learning predictive models into a single unified command center.
+            <strong>AAPDA PRAHARI</strong> is a next-generation civil infrastructure resilience and disaster mitigation platform. In an era marked by escalating climate anomalies and unpredictable seismic movements, traditional disaster management systems often suffer from delayed reporting, fragmented data sources, and a lack of proactive forecasting. Our platform bridges this critical gap by fusing real-time satellite telemetry, global seismic feeds, and deep-learning predictive models into a single unified command center.
           </p>
 
           <h3 style={{ fontSize: '20px', color: COLORS.sky, marginBottom: '14px', marginTop: '30px' }}>
@@ -1017,7 +1017,7 @@ const LandingPage = ({ onNavigate }) => {
               Meet Our Development Team
             </h2>
             <p style={{ color: COLORS.textMuted, fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>
-              The brilliant minds behind MultiHazard AI engineering, data pipelines, and interface design.
+              The brilliant minds behind AAPDA PRAHARI engineering, data pipelines, and interface design.
             </p>
           </div>
 
@@ -1054,8 +1054,8 @@ const LandingPage = ({ onNavigate }) => {
       {/* ---------------- FOOTER ---------------- */}
       <footer className="scroll-fly-element" style={{ borderTop: `1px solid ${COLORS.border}`, background: 'rgba(0, 0, 0, 0.98)', padding: '40px', position: 'relative', zIndex: 2 }}>
         <div style={{ maxWidth: '1180px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-          <span style={{ color: COLORS.sky, fontWeight: 'bold' }}>🛡️ MultiHazard AI Platform</span>
-          <span style={{ fontSize: '12px', color: COLORS.textFaint }}>© 2026 MultiHazard AI · Built for Hackathon Excellence.</span>
+          <span style={{ color: COLORS.sky, fontWeight: 'bold' }}>🛡️ AAPDA PRAHARI Platform</span>
+          <span style={{ fontSize: '12px', color: COLORS.textFaint }}>© 2026 AAPDA PRAHARI · Built for Hackathon Excellence.</span>
         </div>
       </footer>
 

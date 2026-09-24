@@ -230,7 +230,7 @@ const MapDashboard = ({ user, onLogout }) => {
         zIndex: 1000
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span className="db-brand" style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8' }}>🛡️ MultiHazard AI Dashboard</span>
+          <span className="db-brand" style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8' }}>🛡️ AAPDA PRAHARI Dashboard</span>
           <span className="db-role-chip" style={{
             fontSize: '11px',
             background: '#0284c7',
