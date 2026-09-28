@@ -88,6 +88,30 @@ def zscore_scale(values):
     return [(v - mu) / std for v in values]
 
 
+def piecewise_linear(x: float, steps) -> float:
+    """Map x onto 0-100 via non-decreasing piecewise linear interpolation
+    over (threshold, value) steps. Bounds are clamped.
+    """
+    if not steps:
+        return 0.0
+    # Sort steps by threshold
+    s = sorted(steps, key=lambda p: p[0])
+    if x <= s[0][0]:
+        return clamp(float(s[0][1]), 0.0, 100.0)
+    if x >= s[-1][0]:
+        return clamp(float(s[-1][1]), 0.0, 100.0)
+    for i in range(1, len(s)):
+        if s[i - 1][0] <= x <= s[i][0]:
+            x0, y0 = s[i - 1]
+            x1, y1 = s[i]
+            if x1 == x0:
+                return clamp(float(y1), 0.0, 100.0)
+            t = (x - x0) / (x1 - x0)
+            v = y0 + t * (y1 - y0)
+            return clamp(float(v), 0.0, 100.0)
+    return clamp(float(s[-1][1]), 0.0, 100.0)
+
+
 def array_stats(values, keys=("min", "max", "mean", "p90")):
     if not values:
         return {k: None for k in keys}

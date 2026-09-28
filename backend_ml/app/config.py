@@ -50,6 +50,24 @@ WEATHER_PAST_DAYS = int(os.getenv("MH_WEATHER_PAST_DAYS", "15"))
 WEATHER_FORECAST_DAYS = int(os.getenv("MH_WEATHER_FORECAST_DAYS", "2"))
 WEATHER_TIMEOUT = int(os.getenv("MH_WEATHER_TIMEOUT", "30"))
 
+# ---- Cyclone / high-wind hazard scaling ----------------------------------
+# Live 10 m wind telemetry (km/h) is mapped onto a 0-100 cyclone hazard
+# weight by piecewise-linear interpolation between documented WMO Beaufort
+# wind-force / Saffir-Simpson hurricane thresholds. Real constants, not
+# tuning knobs - the input is always the live Open-Meteo reading.
+CYCLONE_WIND_FORCE_STEPS = [
+    (0.0, 0.0),      # calm (Beaufort 0)
+    (50.0, 12.0),    # 28 kt - Beaufort 7, near gale
+    (62.0, 28.0),    # 34 kt - Beaufort 8, gale / cyclonic storm onset
+    (88.0, 50.0),    # 49 kt - Beaufort 10, storm
+    (118.0, 75.0),   # 65 kt - Beaufort 12, hurricane force (Cat 1)
+    (154.0, 100.0),  # 86 kt - Cat 2 lower bound, hazard saturates
+]
+# Sustained wind carries the signal; gusts are weighted up because short
+# lived gusts drive the most structural and operational damage.
+CYCLONE_SUSTAINED_WEIGHT = float(os.getenv("MH_CYCLONE_SUSTAINED_WEIGHT", "0.6"))
+CYCLONE_GUST_WEIGHT = float(os.getenv("MH_CYCLONE_GUST_WEIGHT", "0.4"))
+
 # ---- LSTM forecaster ---------------------------------------------------
 LSTM_WINDOW_HOURS = int(os.getenv("MH_LSTM_WINDOW_HOURS", "24"))
 LSTM_HORIZON_HOURS = int(os.getenv("MH_LSTM_HORIZON_HOURS", "24"))

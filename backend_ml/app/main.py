@@ -71,6 +71,19 @@ def fusion(lat: float, lng: float, city: str = ""):
             "lstm": {"error": str(err), "floodRiskScore": 0.0, "dynamicWeight": 0.5, "riskLevel": "UNKNOWN"},
             "cnn": {"error": str(err)},
             "ga": {"error": str(err), "routes": []},
+            "wind": {
+                "source": "unavailable",
+                "unit": "km/h",
+                "windSpeedKmh": None,
+                "windGustKmh": None,
+                "peakWindKmh": None,
+                "peakGustKmh": None,
+                "sustainedWeight": 0.0,
+                "gustWeight": 0.0,
+                "cycloneRisk": 0.0,
+                "riskLevel": "UNKNOWN",
+                "error": str(err),
+            },
         }
 
 

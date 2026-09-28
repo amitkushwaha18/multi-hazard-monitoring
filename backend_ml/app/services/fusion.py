@@ -10,6 +10,8 @@
 #        |                                         |
 #        +---< fusion risk score + XAI <------------+
 #
+#   weather -> live 10 m wind/gusts -- cycloneRisk
+#
 # Each subsystem is real and computed live; nothing is mocked.
 # ============================================================
 import gc
@@ -21,7 +23,7 @@ from app.core.utils import clamp
 from app.models.cnn_detector import analyze_location
 from app.models.ga_router import optimize_routes
 from app.models.lstm_forecaster import run_forecast
-from app.services.weather import fetch_weather_hydrology
+from app.services.weather import cyclone_error, cyclone_telemetry, fetch_weather_hydrology
 
 _pipeline_cache: Dict[tuple, dict] = {}
 
@@ -45,6 +47,15 @@ def _analysis_report(lat: float, lng: float, city_name: str = "") -> dict:
             lstm["error"] = weather.error
         except Exception as err:
             lstm = _lstm_error(str(err))
+
+    # 2b) Cyclone hazard from the same live 10 m wind telemetry
+    if weather is None:
+        wind = cyclone_error(f"weather telemetry unavailable: {weather_err}")
+    else:
+        try:
+            wind = cyclone_telemetry(weather)
+        except Exception as err:
+            wind = cyclone_error(str(err))
 
     # 3) CNN aerial/drone analysis (structural + flood + road-grid)
     try:
@@ -85,6 +96,7 @@ def _analysis_report(lat: float, lng: float, city_name: str = "") -> dict:
         "lstm": lstm,
         "cnn": cnn,
         "ga": ga,
+        "wind": wind,
     }
     gc.collect()
     return report
@@ -184,6 +196,7 @@ def _fallback_report(lat: float, lng: float, city_name: str, err) -> dict:
         "lstm": _lstm_error(str(err)),
         "cnn": _cnn_error(str(err)),
         "ga": _ga_error(str(err)),
+        "wind": cyclone_error(str(err)),
     }
 
 

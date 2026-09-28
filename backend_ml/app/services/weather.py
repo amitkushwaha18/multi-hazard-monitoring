@@ -2,8 +2,10 @@
 # Real weather & hydrology telemetry (Open-Meteo + GloFAS flood API).
 #
 # Historical + forecast rainfall, temperature, pressure, humidity,
-# soil moisture and river discharge are pulled live. These form the
-# actual input sequences the LSTM forecaster trains and predicts on.
+# soil moisture, 10 m wind/gusts and river discharge are pulled live.
+# These form the actual input sequences the LSTM forecaster trains and
+# predicts on, and the live wind telemetry backs the cyclone hazard
+# weight used by the fusion engine.
 # ============================================================
 import math
 from dataclasses import dataclass, field
@@ -12,6 +14,7 @@ from typing import List, Optional
 import requests
 
 from app import config
+from app.core.utils import clamp, piecewise_linear
 
 HOURLY_FIELDS = [
     "precipitation",
@@ -20,7 +23,14 @@ HOURLY_FIELDS = [
     "relative_humidity_2m",
     "soil_moisture_0_to_1cm",
     "cloud_cover",
+    "wind_speed_10m",
+    "wind_gusts_10m",
 ]
+
+CURRENT_FIELDS = (
+    "precipitation,temperature_2m,pressure_msl,relative_humidity_2m,"
+    "soil_moisture_0_to_1cm,cloud_cover,wind_speed_10m,wind_gusts_10m"
+)
 
 
 @dataclass
@@ -34,6 +44,8 @@ class WeatherSeries:
     relative_humidity_2m: List[float] = field(default_factory=list)
     soil_moisture_0_to_1cm: List[float] = field(default_factory=list)
     cloud_cover: List[float] = field(default_factory=list)
+    wind_speed_10m: List[float] = field(default_factory=list)
+    wind_gusts_10m: List[float] = field(default_factory=list)
     river_discharge: List[float] = field(default_factory=list)
     current: dict = field(default_factory=dict)
     source: str = "open-meteo"
@@ -51,7 +63,8 @@ def _hourly_from_forecast(lat: float, lng: float) -> dict:
         "latitude": lat,
         "longitude": lng,
         "hourly": ",".join(HOURLY_FIELDS),
-        "current": "precipitation,temperature_2m,pressure_msl,relative_humidity_2m,soil_moisture_0_to_1cm,cloud_cover",
+        "current": CURRENT_FIELDS,
+        "wind_speed_unit": "kmh",
         "past_days": config.WEATHER_PAST_DAYS,
         "forecast_days": config.WEATHER_FORECAST_DAYS,
         "timezone": "auto",
@@ -132,13 +145,16 @@ def fetch_weather_hydrology(lat: float, lng: float) -> WeatherSeries:
         return series
 
     hourly = f.get("hourly", {})
+    current = f.get("current", {})
     series.current = {
-        "precipitation": f.get("current", {}).get("precipitation", 0.0) or 0.0,
-        "temperature_2m": f.get("current", {}).get("temperature_2m", 0.0) or 0.0,
-        "pressure_msl": f.get("current", {}).get("pressure_msl", 1013.25) or 1013.25,
-        "relative_humidity_2m": f.get("current", {}).get("relative_humidity_2m", 0.0) or 0.0,
-        "soil_moisture_0_to_1cm": f.get("current", {}).get("soil_moisture_0_to_1cm", 0.0) or 0.0,
-        "cloud_cover": f.get("current", {}).get("cloud_cover", 0.0) or 0.0,
+        "precipitation": current.get("precipitation", 0.0) or 0.0,
+        "temperature_2m": current.get("temperature_2m", 0.0) or 0.0,
+        "pressure_msl": current.get("pressure_msl", 1013.25) or 1013.25,
+        "relative_humidity_2m": current.get("relative_humidity_2m", 0.0) or 0.0,
+        "soil_moisture_0_to_1cm": current.get("soil_moisture_0_to_1cm", 0.0) or 0.0,
+        "cloud_cover": current.get("cloud_cover", 0.0) or 0.0,
+        "wind_speed_10m": current.get("wind_speed_10m", 0.0) or 0.0,
+        "wind_gusts_10m": current.get("wind_gusts_10m", 0.0) or 0.0,
     }
     series.time = hourly.get("time", [])
     series.precipitation = [(v or 0.0) for v in hourly.get("precipitation", [])]
@@ -147,6 +163,8 @@ def fetch_weather_hydrology(lat: float, lng: float) -> WeatherSeries:
     series.relative_humidity_2m = [(v or 0.0) for v in hourly.get("relative_humidity_2m", [])]
     series.soil_moisture_0_to_1cm = [(v or 0.0) for v in hourly.get("soil_moisture_0_to_1cm", [])]
     series.cloud_cover = [(v or 0.0) for v in hourly.get("cloud_cover", [])]
+    series.wind_speed_10m = [(v or 0.0) for v in hourly.get("wind_speed_10m", [])]
+    series.wind_gusts_10m = [(v or 0.0) for v in hourly.get("wind_gusts_10m", [])]
     series.source = "open-meteo"
 
     # Real hydrological telemetry (GloFAS) - river water level proxy.
@@ -189,3 +207,67 @@ def water_level_from_discharge(discharge_series: List[float]) -> List[float]:
     if not discharge_series:
         return []
     return [round(0.5 * math.log(max(v, 0.1)), 3) for v in discharge_series]
+
+
+def wind_force_weight(wind_kmh: float) -> float:
+    """0-100 cyclone weight for a single live wind reading (km/h), scaled
+    against the documented Beaufort / Saffir-Simpson force thresholds."""
+    return piecewise_linear(float(wind_kmh or 0.0), config.CYCLONE_WIND_FORCE_STEPS)
+
+
+def cyclone_telemetry(series: WeatherSeries) -> dict:
+    """Cyclone hazard block derived entirely from live Open-Meteo wind
+    telemetry: the current sustained speed and gusts, plus the window peak,
+    blended into a single 0-100 hazard weight. No mock or seeded values."""
+    current = series.current or {}
+    wind_kmh = round(float(current.get("wind_speed_10m", 0.0) or 0.0), 1)
+    gust_kmh = round(float(current.get("wind_gusts_10m", 0.0) or 0.0), 1)
+    peak_kmh = round(max(series.wind_speed_10m), 1) if series.wind_speed_10m else 0.0
+    peak_gust_kmh = round(max(series.wind_gusts_10m), 1) if series.wind_gusts_10m else 0.0
+
+    sustained = wind_force_weight(wind_kmh)
+    gust = wind_force_weight(gust_kmh)
+    weight = clamp(
+        config.CYCLONE_SUSTAINED_WEIGHT * sustained + config.CYCLONE_GUST_WEIGHT * gust, 0, 100
+    )
+
+    return {
+        "source": series.source,
+        "unit": "km/h",
+        "windSpeedKmh": wind_kmh,
+        "windGustKmh": gust_kmh,
+        "peakWindKmh": peak_kmh,
+        "peakGustKmh": peak_gust_kmh,
+        "sustainedWeight": round(sustained, 1),
+        "gustWeight": round(gust, 1),
+        "cycloneRisk": round(weight, 1),
+        "riskLevel": _cyclone_label(weight),
+        "error": series.error,
+    }
+
+
+def cyclone_error(msg: str) -> dict:
+    """Degraded block when live wind telemetry is unavailable."""
+    return {
+        "source": "unavailable",
+        "unit": "km/h",
+        "windSpeedKmh": None,
+        "windGustKmh": None,
+        "peakWindKmh": None,
+        "peakGustKmh": None,
+        "sustainedWeight": 0.0,
+        "gustWeight": 0.0,
+        "cycloneRisk": 0.0,
+        "riskLevel": "UNKNOWN",
+        "error": msg,
+    }
+
+
+def _cyclone_label(score: float) -> str:
+    if score >= 80:
+        return "CRITICAL"
+    if score >= 60:
+        return "HIGH"
+    if score >= 35:
+        return "MODERATE"
+    return "LOW"

@@ -5,13 +5,14 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const MultiHazardFusionEngine = ({ selectedLocation, ml, seismicEvents }) => {
   const lstm = ml?.lstm || {};
 
-  // Thermal hazard weight: documented linear heat-index derivedness from the
-  // live LSTM temperature forecast (avg °C over the trained window).
-  const tempSeries = lstm?.history?.temperature_2m || [];
-  const avgTempC = tempSeries.length
-    ? tempSeries.reduce((a, b) => a + b, 0) / tempSeries.length
-    : 0;
-  const heatRisk = ml ? Math.round(clamp((avgTempC - 22) * 4.5, 0, 100)) : 0;
+  // Cyclone hazard weight: derived server-side from live Open-Meteo 10 m
+  // wind telemetry (sustained + gusts) against WMO Beaufort / Saffir-Simpson
+  // force thresholds. No mock or hardcoded inputs - ml.wind carries the
+  // real current readings and the derived 0-100 weight.
+  const wind = ml?.wind || {};
+  const windSpeedKmh = wind?.windSpeedKmh;
+  const windGustKmh = wind?.windGustKmh;
+  const cycloneRisk = ml ? Math.round(clamp(Number(wind?.cycloneRisk) || 0, 0, 100)) : 0;
 
   // Seismic hazard weight: from the nearest live earthquake within 600 km.
   let seismicRisk = 0;
@@ -33,7 +34,7 @@ const MultiHazardFusionEngine = ({ selectedLocation, ml, seismicEvents }) => {
   // Inundation/flood weight: real ML LSTM flood-risk score.
   const floodRisk = ml ? Math.round(clamp(Number(lstm?.floodRiskScore) || 0, 0, 100)) : 0;
 
-  const compositeRisk = Math.round((heatRisk * 0.4) + (seismicRisk * 0.3) + (floodRisk * 0.3));
+  const compositeRisk = Math.round((cycloneRisk * 0.4) + (seismicRisk * 0.3) + (floodRisk * 0.3));
 
   return (
     <div style={{
@@ -55,11 +56,17 @@ const MultiHazardFusionEngine = ({ selectedLocation, ml, seismicEvents }) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-        {/* Heatwave Hazard Weight */}
+        {/* Cyclone Hazard Weight */}
         <div style={{ background: '#020617', padding: '14px', borderRadius: '10px', border: '1px solid #334155' }}>
-          <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>🔥 Thermal Hazard Weight</p>
-          <h3 style={{ margin: '6px 0 0', fontSize: '20px', color: '#ef4444' }}>{heatRisk}%</h3>
-          {ml && <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#64748b' }}>LSTM {avgTempC.toFixed(1)}°C forecast</p>}
+          <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>🌀 Cyclone Hazard Weight</p>
+          <h3 style={{ margin: '6px 0 0', fontSize: '20px', color: '#22d3ee' }}>{cycloneRisk}%</h3>
+          {ml && (
+            <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#64748b' }}>
+              {windSpeedKmh == null
+                ? 'Live wind unavailable'
+                : `Live wind ${windSpeedKmh} km/h · gusts ${windGustKmh ?? '—'} km/h`}
+            </p>
+          )}
         </div>
 
         {/* Seismic Hazard Weight */}
